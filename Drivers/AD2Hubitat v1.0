@@ -1,0 +1,351 @@
+/**
+ *  AD2Hubitat Home Alarm Driver v1.0
+ * 
+ *  Adds your Honeywell/Ademco home alarm to your Hubitat Elevation Hub
+ *  Honeywell/Ademco alarms are usually installed by ADT and other companies.  Check your alarm panel to verify
+ *  This SmartThings Device Type Code Works With Arduino Connected To An AD2Pi Wired To A Honeywell/Ademco Home Alarm
+ *
+ *	By Michael Ritchie
+ *
+ *	Credits:
+ *	Special thanks to Stan Dotson for his assitance creating this project on SmartThings
+ *  Lots of good ideas from @craig whose code can be found at https://gist.github.com/e5b30109fdaec805d474.git
+ *  Also relied on architecture enabled by github contributor vassilisv 
+ *  Also thanks to Sean Matthews for contributing technical approach to setting AD2Pi address
+ *  Date: 2018-03-11
+ *  
+ *  Zones:
+ *  To adjust the number of zones, simply trim or add the number of zones listed in the attribute list.
+ *  No other code needs to be modified!
+ *  
+ * Motion Detector Options:
+ * Motion detectors that are hooked up to zone expanders can report motion while in armed-stay.
+ * You can validate whether your motions are hooked up to a zone expander by looking at their zone number.
+ * Any zone 9 or above is on a zone expander since the Vista 20P has 8 zones on the primary board.
+ * If you wish to have your virtual motion devices updated during armed stay:
+ * 1. Set the Log events for motions while in Armed Stay? to true
+ * 2. Unfortunately the zone name is not sent from your alarm panel so if you want the AD2Hubitat device's
+ *    event log to be populated with the name, configure lines 109 through 112 below listing your motion zones.
+ *    This isn't required and your linked virtual motions will be updated.
+ *
+ */
+
+metadata {
+	definition (name: "AD2Hubitat", namespace: "mlritchie", author: "Michael Ritchie") {
+
+        capability "Switch"  // <on> will arm alarm in "stay" mode; same as armStay
+        capability "Lock"  // <lock> will arm alarm in "away" mode; same as armAway
+        capability "Alarm" // enables <both> or <siren> to  immediately alarm the system
+
+        command "disarm"
+        command "armStay"
+        command "armAway"
+        command "chime"
+        command "config"
+        //command "bypassZoneName" // If you wish to create a button to bypass a zone, uncomment this line, change name and edit function at bottom
+
+        attribute "system", "string" //disarmed, armedAway, armedStay, alarm, armingAway, armingStay
+        attribute "chime", "string" //chimeOn, chimeOff, sendingChime
+        attribute "powerState", "string" //On AC Power, On Battery: Fully Charged, On Battery: Low Charge
+        attribute "msg", "string"
+        attribute "alertMsg", "string"
+        attribute "timeMsg", "string"
+        
+/******************************************************************************************************************************************
+BEGIN PERSONALIZED CODE SECTION
+
+To customize this driver, add or remove zones based on your alarm system
+******************************************************************************************************************************************/
+
+        attribute "zone1", "string"		//Zone 1 Name
+        attribute "zone2", "string"		//Zone 2 Name
+        attribute "zone3", "string"		//Zone 3 Name
+        attribute "zone4", "string"		//Zone 4 Name
+        attribute "zone5", "string"		//Zone 5 Name
+        attribute "zone6", "string"		//Zone 6 Name
+        attribute "zone9", "string"		//Zone 9 Name
+        attribute "zone10", "string"	//Zone 10 Name
+        attribute "zone11", "string"	//Zone 11 Name
+        attribute "zone12", "string"	//Zone 12 Name
+        attribute "zone13", "string"	//Zone 13 Name
+        attribute "zone14", "string"	//Zone 14 Name
+        attribute "zone15", "string"	//Zone 15 Name
+        attribute "zone16", "string"	//Zone 16 Name
+        attribute "zone17", "string"	//Zone 17 Name
+        attribute "zone18", "string"	//Zone 18 Name
+        attribute "zone19", "string"	//Zone 19 Name
+        attribute "zone20", "string"	//Zone 20 Name
+        attribute "zone21", "string"	//Zone 21 Name
+        attribute "zone22", "string"	//Zone 22 Name
+        attribute "zone23", "string"	//Zone 23 Name
+        attribute "zone24", "string"	//Zone 24 Name
+        
+/******************************************************************************************************************************************
+END OF PERSONALIZED CODE SECTION
+******************************************************************************************************************************************/
+	}
+    
+    preferences {
+	
+        // The Configuration Command preferences allows input of a configuration command to be sent to AD2Pi.  
+        // For example, to change the address to 31 the command would be "ADDRESS=31"
+        // After entering the command in setup, you MUST press the "Config" tile to send the configuration command to the AD2Pi
+        // Note: this will write to the eeprom of the AD2* so caution should be used to not excessively do this task or it would eventually damage the EEPROM. 
+        // This should be preformed only during system setup and configuration!
+        // To prevent excessive use, the configCommand value can be reset to null after sending to device
+        // pressing the "Config" tile and sending null will harmlessly request the alarm panel to report out its Configurtion into the message tile.
+
+        input("configCommand", "text", title: "AD2Pi Configuration Command, for example ADDRESS=31", defaultValue: '', required: false, displayDuringSetup: true)
+        input("securityCode", "text", title: "Option: Enter your 4 digit homeowner security code here or in the Arduino sketch",
+            description: "Code entered here takes priority.", defaultValue: "", required: false, displayDuringSetup: true)
+        input("armedInstant", "bool", title: "Use Armed Instant When Arming Stay?", defaultValue: false, required: false)
+        input("armedStayMotion", "bool", title: "Log events for motions while in Armed Stay?", defaultValue: false, required: false)
+        input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
+    }
+}
+
+def parse(String description) {
+    def motionList = [
+        "21" : "Zone 21 Motion",
+        "22" : "Zone 22 Motion",
+        "23" : "Zone 23 Motion",
+        "24" : "Zone 24 Motion",
+    ]
+    
+    def result = []
+    def rawMsg = parseThingShield(description)
+    logDebug "rawMsg: ${rawMsg}"
+    
+    if (rawMsg.contains("ping") || rawMsg.contains("catchall") || rawMsg.equals("") || rawMsg == null) {
+    	// Do Nothing    
+    } else if (rawMsg.contains("...."))  {
+		result << createEvent(name: "msg", value: "Having Trouble Sending")   
+    } else if (rawMsg.contains("|")) {        
+        //0:powerStatus, 1:chimeStatus, 2:alarmStatus, 3:activeZone, 4:inactiveList, 5:keypadMsg
+        String[] msgSplit = rawMsg.toString().split("[|]", 7);
+
+        def powerStatus = msgSplit[0].trim()
+        def chimeStatus = msgSplit[1].trim()
+        def alarmStatus = msgSplit[2].trim()
+		def activeZone = msgSplit[3].trim()
+        def inactiveList = msgSplit[4].trim()
+        def keypadMsg = msgSplit[5].trim()
+
+        if (powerStatus != "" && powerStatus != null) {
+            if (powerStatus == "AC") {
+                result << createEvent(name: "alertMsg", value: "Alarm on AC Power")
+                result << createEvent(name: "powerState", value: "On AC Power")
+            } else if (powerStatus == "BN") {
+                result << createEvent(name: "alertMsg", value: "Alarm on Battery Power: Fully Charged")
+                result << createEvent(name: "powerState", value: "On Battery: Fully Charged")
+            } else if (powerStatus == "BL") {
+                result << createEvent(name: "alertMsg", value: "Alarm on Battery Power: Low Charge")
+                result << createEvent(name: "powerState", value: "On Battery: Low Charge")
+            }
+            logDebug "powerStatus: ${powerStatus}"
+        }
+		
+        if (chimeStatus != "" && chimeStatus != null) {
+            result << createEvent(name: "chime", value: "${chimeStatus}", displayed: true, isStateChange: true, isPhysical: true)
+            logDebug "chimeStatus: ${chimeStatus}"
+        }
+			
+        if (alarmStatus != "" && alarmStatus != null) {
+            if (alarmStatus == "alarm") {
+                def alarmMsg = "Alarm is sounding!"
+                if (keypadMsg != "" && keypadMsg != null) {
+                	alarmMsg = alarmMsg + " " + keypadMsg
+                }
+                if (activeZone != "" && activeZone != null) {
+                	alarmMsg = alarmMsg + " Zone: " + activeZone.trim()
+                }
+                result << createEvent(name: "alertMsg", value: "${alarmMsg}")
+                logDebug "alertMsg: ${alarmMsg}"
+            }
+            result << createEvent(name: "system", value: "${alarmStatus}", displayed: true, isStateChange: true, isPhysical: true)
+            
+            def timeMsg = setTimeMsg(alarmStatus)
+            if (timeMsg != "") {
+            	result << createEvent(name: "timeMsg", value: timeMsg, displayed: false)
+            }
+            logDebug "alarmStatus: ${alarmStatus}"
+        }
+        
+        if (activeZone.equals("") || activeZone == null) {
+            // Do Nothing
+        } else {
+            if (armedStayMotion && keypadMsg.equals("")) {
+                def zoneName = ""
+                if (motionList.containsKey(activeZone)) {
+                    zoneName = motionList.get(activeZone) 
+                } else {
+                    zoneName = "zone${activeZone}"
+                    logDebug "Motion zone ${activeZone} is not listed in the motionList settings."
+                }
+                keypadMsg = "${zoneName} is active"
+            }
+            result << createEvent(name: "zone${activeZone.trim()}", value: "active", descriptionText: keypadMsg, displayed: true, isStateChange: true, isPhysical: true)
+            logDebug "Created active event for zone${activeZone.trim()}"
+        }
+        
+        //process inActiveList
+        if (inactiveList.equals("") || inactiveList == null) {
+            // Do Nothing
+        } else {
+            if (inactiveList.toString().indexOf("allClear") > -1) {
+                def numZones  = inactiveList.substring(inactiveList.indexOf(":") + 1).toInteger()
+                inactiveList = ""
+                for (int i = 1; i <= numZones; i++) {
+					inactiveList = inactiveList + i + ","
+            	}
+            }
+            def inactiveArray = inactiveList.toString().split(",");     
+            for (int i = 0; i < inactiveArray.size(); i++) {
+                if (device.currentValue("zone${inactiveArray[i].trim()}") == "active") {
+                	result << createEvent(name: "zone${inactiveArray[i].trim()}", value: "inactive", displayed: true, isStateChange: true, isPhysical: true)
+                	logDebug "Created inactive event for zone${inactiveArray[i].trim()}"
+                }
+            }
+        }
+        
+        if (keypadMsg != "" && keypadMsg != null) {
+	    	result << createEvent(name: "msg", value: keypadMsg, displayed: false)
+            if (keypadMsg == "Alarm not ready cannot arm") {
+                logDebug "alertMsg: ${keypadMsg}"
+            	result << createEvent(name: "alertMsg", value: keypadMsg)
+            }
+            logDebug "keypadMsg: ${keypadMsg}"
+        }
+    } else {
+		result << createEvent(name: "msg", value: rawMsg, displayed: false)
+    }
+    return result
+}
+
+def sendThingShield(String message) {
+    def encodedString = DataType.pack(message, DataType.STRING_CHAR).substring(2)
+	return "he raw 0x${device.deviceNetworkId} 1 0x${device.endpointId} 0x0 {00000a0a" + encodedString + "}"
+}
+
+def parseThingShield(String description) {
+    def resultMap = zigbee.parseDescriptionAsMap(description)
+    if (resultMap.attrId) {
+    	return fromHexString(resultMap.attrId.substring(0,2)) + fromHexString(resultMap.encoding) + fromHexString(resultMap.value)
+    } 
+    else {
+        return description
+    }
+}
+
+def fromHexString(String hex) {
+    StringBuilder str = new StringBuilder();
+    for (int i = 0; i < hex.length(); i+=2) {
+        str.append((char) Integer.parseInt(hex.substring(i, i + 2), 16));
+    }
+    return str.toString();
+}
+
+def setTimeMsg(mode) {
+    if (mode.startsWith("armed")) {
+    	return ""
+    }
+    
+    if (mode.indexOf("arming") > -1) {
+    	mode = mode.replace("arming", "")
+    } else {
+    	mode = "Disarmed"
+    }
+    
+    def timeMsg = device.currentValue("timeMsg").toString()
+    def dateFormat = new java.text.SimpleDateFormat("MM/dd hh:mm a")
+    dateFormat.setTimeZone(location.timeZone)
+
+	if (timeMsg == "" || timeMsg == "null" || timeMsg == null) {
+        timeMsg = "${mode}: " + dateFormat.format(new Date()).toString()
+    } else if (timeMsg.toString().indexOf("\n") == -1 ){
+        timeMsg = timeMsg + "\n" + "${mode}: " + dateFormat.format(new Date()).toString()
+    } else if (timeMsg.toString().indexOf("\n") > -1 ){
+        def timeMsgSplit = timeMsg.toString().split("\n")
+        timeMsg = timeMsgSplit[1] + "\n" + "${mode}: " + dateFormat.format(new Date()).toString()
+    }
+    
+    return timeMsg
+}
+
+private logDebug(msg) {
+	if (isDebugEnabled != false) {
+		log.debug "$msg"
+	}
+}
+
+// Commands sent to the device
+def on() { //use to turn on alarm while home
+	armStay()
+}
+
+def off() {
+	disarm()
+}
+
+def lock() { //use to turn on alarm in away mode
+	armAway()
+}
+
+def unlock() {
+	disarm()
+}
+
+def armAway() {
+    setTimeMsg("Arm Away")
+    //0:msgType, 1:msgSecurityCode, 2:msgCmd
+    def securityCodeVal = (securityCode) ? securityCode : ""
+    sendThingShield("CODE|"+ securityCodeVal + "|2")
+}
+
+def disarm() {
+	setTimeMsg("Disarm")
+    sendEvent(name: "system", value: "disarmed", displayed: true, isStateChange: true, isPhysical: true)
+    sendEvent(name: "panic", value: "disarmed", displayed: false, isStateChange: true, isPhysical: true)
+    //0:msgType, 1:msgSecurityCode, 2:msgCmd
+    def securityCodeVal = (securityCode) ? securityCode : ""
+    sendThingShield("CODE|"+ securityCodeVal + "|1***")
+}
+
+def armStay() {
+    setTimeMsg("Arm Stay")
+    //0:msgType, 1:msgSecurityCode, 2:msgCmd
+    def securityCodeVal = (securityCode) ? securityCode : ""
+    def alarmCode = "|3"
+    if (armedInstant) {
+    	alarmCode = "|7"
+    }
+    sendThingShield("CODE|" + securityCodeVal + alarmCode)
+}
+
+def chime() {
+    //0:msgType, 1:msgSecurityCode, 2:msgCmd
+    def securityCodeVal = (securityCode) ? securityCode : ""
+    sendThingShield("CODE|" + securityCodeVal + "|9")
+}
+
+def config() {
+	// pressing the "Config" tile on the AD2Pi will normally request the alarm panel to report out its Configurtion into the message tile.
+    // If a Configuration Command was provided as input into the Preferences, this method will send the command down to the Arduino
+    // which will write to the eeprom of the AD2Pi 
+
+    logDebug "sending AD2Pi Config Command: ${configCommand}"
+    //0:msgType, 1:msgSecurityCode, 2:msgCmd
+    sendThingShield("CONF||${configCommand}")
+}
+
+/******************************************************************************************************************************************
+START OF PERSONALIZED FUNCTIONS SECTION
+******************************************************************************************************************************************/
+
+def bypassZoneName() {
+    def bypassZoneNumber = "09" //Zone number to bypass
+	
+	//0:msgType, 1:msgSecurityCode, 2:msgCmd
+    def securityCodeVal = (securityCode) ? securityCode : ""
+    sendThingShield("CODE|"+ securityCodeVal + "|6" + bypassZoneNumber)
+}
