@@ -93,13 +93,13 @@ def initialize() {
             myDevice.label = zoneName
         }
 
-        if (zoneType == "Simulated Contact Sensor") {
+        if (zoneType == "Virtual Contact Sensor") {
         	logDebug("Subscribing to ${arduino}, ${zoneNumber}, contactHandler")
             subscribe(arduino, zoneNumber, virtualDeviceHandler)
-        } else if (zoneType == "Simulated Motion Sensor") {
+        } else if (zoneType == "Virtual Motion Sensor") {
         	logDebug("Subscribing to ${arduino}, ${zoneNumber}, motionHandler")
             subscribe(arduino, zoneNumber, virtualDeviceHandler)
-        } else if (zoneType == "Simulated Smoke Alarm") {
+        } else if (zoneType == "Virtual Smoke Alarm") {
         	logDebug("Subscribing to ${arduino}, ${zoneNumber}, motionHandler")
             subscribe(arduino, zoneNumber, virtualDeviceHandler)
         }
