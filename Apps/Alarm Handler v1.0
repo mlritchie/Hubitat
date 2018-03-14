@@ -1,0 +1,162 @@
+/**
+ *  Alarm Handler v1.0
+ *
+ *  Copyright 2018 Michael Ritchie
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ */
+ 
+definition(
+    name: "Alarm Handler v1.0",
+    namespace: "mlritchie",
+    author: "Michael Ritchie",
+    description: "Create virtual devices for each alarm zone and synchronize alarm events with the child devices",
+    category: "Convenience",
+    iconUrl: "http://cdn.device-icons.smartthings.com/Home/home3-icn.png",
+    iconX2Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@2x.png",
+    iconX3Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@3x.png")
+
+preferences {
+	page(name: "controllerSetup")
+    page(name: "zoneSetup")
+}
+
+def controllerSetup() {
+    dynamicPage(name: "controllerSetup", title: "Alarm Controller and Devices", nextPage:"zoneSetup", uninstall: true) {
+		section("") {
+			input "arduino", "capability.alarm", title: "Alarm Controller", required: true, multiple: false
+			input "howMany", "number", title: "How many alarm zones do you want to setup devices for?", required: true
+		}
+        section("Virtual Device Name Prefix (optional.  Example 'Alarm' for Alarm Back Door)"){
+            input "namePrefix", "text", title: "Name Prefix", required: false
+        }
+        section("Other Preferences"){
+            input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
+        }
+	}
+}
+
+def zoneSetup() {
+   	dynamicPage(name: "zoneSetup", title: "Zone Setup", install:true) {
+    	for (int i=1;i<=settings.howMany;i++) {
+        	section("Virtual Device " + i) {
+                input "zone" + i, "number", title: "Zone Number", required: true
+                input "name" + i, "string", title: "Zone Name", required: true
+                input "typezone" + i, "enum", title: "Zone Type", options:["Simulated Contact Sensor","Simulated Motion Sensor","Simulated Smoke Alarm"], required: true
+            }
+        }    
+    }
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	unsubscribe()
+	initialize()
+}
+
+def uninstalled() {
+	removeChildDevices(getChildDevices())
+}
+
+def initialize() {
+    // Subscribe to the Arduino and other contacts and motions for notifications
+
+    for (int i = 1 ; i <= howMany; i++) {        
+        def zoneNumber = "zone" + settings["zone$i"].toString()
+        def zoneName = settings["name$i"]
+        if (namePrefix) {
+        	zoneName = namePrefix + " " + zoneName
+        }
+        def zoneType = settings["typezone$i"]
+        def deviceID = "Alarm_" + zoneNumber
+        logDebug "checking device: zoneNumber: ${zoneNumber}, name: ${zoneName}, type: ${zoneType}, deviceID: ${deviceID}"
+    	
+        def myDevice = getChildDevice(deviceID)
+        if (!myDevice) {
+            logDebug("creating device: ${zoneName} deviceID: ${deviceID}")
+            def childDevice = addChildDevice("mlritchie", zoneType, deviceID, null, [name: "${zoneName}", label: "${zoneName}"])
+            logDebug("created device: ${deviceID}")
+        } else {        
+            myDevice.name = zoneName
+            myDevice.label = zoneName
+        }
+
+        if (zoneType == "Simulated Contact Sensor") {
+        	logDebug("Subscribing to ${arduino}, ${zoneNumber}, contactHandler")
+            subscribe(arduino, zoneNumber, virtualDeviceHandler)
+        } else if (zoneType == "Simulated Motion Sensor") {
+        	logDebug("Subscribing to ${arduino}, ${zoneNumber}, motionHandler")
+            subscribe(arduino, zoneNumber, virtualDeviceHandler)
+        } else if (zoneType == "Simulated Smoke Alarm") {
+        	logDebug("Subscribing to ${arduino}, ${zoneNumber}, motionHandler")
+            subscribe(arduino, zoneNumber, virtualDeviceHandler)
+        }
+    }
+}
+
+def virtualDeviceHandler(evt) {
+    def deviceName = evt.name
+    def deviceValue = evt.value
+    def deviceID = "Alarm_" + deviceName
+    logDebug "deviceName: ${deviceName}, deviceValue: ${deviceValue}, deviceID: '${deviceID}'"
+    
+    def virtualDevice = getChildDevice(deviceID)
+    if (virtualDevice) {
+        def virtualDeviceType = virtualDevice.typeName
+        switch (virtualDeviceType) {
+            case "Simulated Contact Sensor":
+                virtualDevice.sendEvent(name: "contact", value: deviceValue == "active" ? "open" : "closed")
+                break
+            case "Simulated Motion Sensor":
+                virtualDevice.sendEvent(name: "motion", value: deviceValue)
+                break
+            case "Simulated Smoke Alarm":
+                virtualDevice.sendEvent(name: "smoke", value: deviceValue == "active" ? "smoke" : "clear")
+                break
+        }
+    } else {
+        logDebug "Could not find child device '${deviceID}'"
+    }
+}
+
+private translateState(currentState) {
+	switch (currentState) {
+		case "disarmed":
+			return "off"
+		case "armingStay":
+			return "stay"
+        case "armedStay":
+			return "stay"
+		case "armingAway":
+			return "away"
+        case "armedAway":
+			return "away"
+        case "off":
+			return "disarmed"
+		case "stay":
+			return "armedStay"
+		case "away":
+			return "armedAway"
+	}
+}
+
+private removeChildDevices(delete) {
+	delete.each {deleteChildDevice(it.deviceNetworkId)}
+}
+
+private logDebug(msg) {
+	if (isDebugEnabled) {
+		log.debug "$msg"
+	}
+}
