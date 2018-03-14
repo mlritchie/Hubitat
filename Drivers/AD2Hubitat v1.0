@@ -106,10 +106,10 @@ END OF PERSONALIZED CODE SECTION
 
 def parse(String description) {
     def motionList = [
-        "21" : "Zone 21 Motion",
-        "22" : "Zone 22 Motion",
-        "23" : "Zone 23 Motion",
-        "24" : "Zone 24 Motion",
+        //"21" : "Zone 21 Motion Sensor Name",
+        //"22" : "Zone 22 Motion Sensor Name",
+        //"23" : "Zone 23 Motion Sensor Name",
+        //"24" : "Zone 24 Motion Sensor Name",
     ]
     
     def result = []
@@ -273,7 +273,7 @@ def setTimeMsg(mode) {
 }
 
 private logDebug(msg) {
-	if (isDebugEnabled != false) {
+	if (isDebugEnabled) {
 		log.debug "$msg"
 	}
 }
