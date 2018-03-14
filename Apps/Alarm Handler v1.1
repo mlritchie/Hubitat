@@ -116,13 +116,13 @@ def virtualDeviceHandler(evt) {
     if (virtualDevice) {
         def virtualDeviceType = virtualDevice.typeName
         switch (virtualDeviceType) {
-            case "Simulated Contact Sensor":
+            case "Virtual Contact Sensor":
                 virtualDevice.sendEvent(name: "contact", value: deviceValue == "active" ? "open" : "closed")
                 break
-            case "Simulated Motion Sensor":
+            case "Virtual Motion Sensor":
                 virtualDevice.sendEvent(name: "motion", value: deviceValue)
                 break
-            case "Simulated Smoke Alarm":
+            case "Virtual Smoke Alarm":
                 virtualDevice.sendEvent(name: "smoke", value: deviceValue == "active" ? "smoke" : "clear")
                 break
         }
