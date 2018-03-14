@@ -1,5 +1,5 @@
 /**
- *  Alarm Handler v1.0
+ *  Alarm Handler v1.1
  *
  *  Copyright 2018 Michael Ritchie
  *
@@ -15,7 +15,7 @@
  */
  
 definition(
-    name: "Alarm Handler v1.0",
+    name: "Alarm Handler v1.1",
     namespace: "mlritchie",
     author: "Michael Ritchie",
     description: "Create virtual devices for each alarm zone and synchronize alarm events with the child devices",
@@ -50,7 +50,7 @@ def zoneSetup() {
         	section("Virtual Device " + i) {
                 input "zone" + i, "number", title: "Zone Number", required: true
                 input "name" + i, "string", title: "Zone Name", required: true
-                input "typezone" + i, "enum", title: "Zone Type", options:["Simulated Contact Sensor","Simulated Motion Sensor","Simulated Smoke Alarm"], required: true
+                input "typezone" + i, "enum", title: "Zone Type", options:["Virtual Contact Sensor","Virtual Motion Sensor","Virtual Smoke Alarm"], required: true
             }
         }    
     }
@@ -85,7 +85,8 @@ def initialize() {
         def myDevice = getChildDevice(deviceID)
         if (!myDevice) {
             logDebug("creating device: ${zoneName} deviceID: ${deviceID}")
-            def childDevice = addChildDevice("mlritchie", zoneType, deviceID, null, [name: "${zoneName}", label: "${zoneName}"])
+            def deviceNameSpace = (zoneType == "Virtual Smoke Alarm") ? "mlritchie" : "hubitat"
+            def childDevice = addChildDevice(deviceNameSpace, zoneType, deviceID, null, [name: "${zoneName}", label: "${zoneName}"])
             logDebug("created device: ${deviceID}")
         } else {        
             myDevice.name = zoneName
