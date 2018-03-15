@@ -1,5 +1,5 @@
 /**
- *  Alarm Handler v1.1
+ *  Alarm Handler v1.2
  *
  *  Copyright 2018 Michael Ritchie
  *
@@ -15,10 +15,10 @@
  */
  
 definition(
-    name: "Alarm Handler v1.1",
+    name: "Alarm Handler v1.2",
     namespace: "mlritchie",
     author: "Michael Ritchie",
-    description: "Create virtual devices for each alarm zone and synchronize alarm events with the child devices",
+    description: "Create virtual devices for each alarm zone, synchronize alarm events with the child devices, sychronizes alarm panel with Hubitat Safety Monitor",
     category: "Convenience",
     iconUrl: "http://cdn.device-icons.smartthings.com/Home/home3-icn.png",
     iconX2Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@2x.png",
@@ -27,6 +27,7 @@ definition(
 preferences {
 	page(name: "controllerSetup")
     page(name: "zoneSetup")
+	page(name: "alertSetup")
 }
 
 def controllerSetup() {
@@ -45,7 +46,7 @@ def controllerSetup() {
 }
 
 def zoneSetup() {
-   	dynamicPage(name: "zoneSetup", title: "Zone Setup", install:true) {
+   	dynamicPage(name: "zoneSetup", title: "Zone Setup", nextPage:"alertSetup", install:false) {
     	for (int i=1;i<=settings.howMany;i++) {
         	section("Virtual Device " + i) {
                 input "zone" + i, "number", title: "Zone Number", required: true
@@ -54,6 +55,18 @@ def zoneSetup() {
             }
         }    
     }
+}
+
+def alertSetup() {
+    dynamicPage(name: "alertSetup", title: "Additional Features", install:true) {
+        section("Integrate your alarm panel with Hubitat Safety Monitor.  By enabling this feature HSM will be in sync with your alarm panel.  You can arm and disarm your panel via HSM, in the Alarm Device Handler, or directly on your alarm system keypad with everything in sync."){
+            input "syncHSM", "bool", title: "Sync with HSM?", defaultValue: false
+        }
+		section("Receive alarm alert messages via SMS message.  By enabling notifications, you will receive notifications for alarm sounding, panel power status changes (on battery, low battery, on AC), and when you try to arm your alarm and it is not in a ready state."){
+            input "sendNotification", "bool", title: "Send notifications?", defaultValue: false
+            input "phone", "phone", title: "Phone Number(s) (Phone number for SMS format +1<10 digits> separate multiple with ,)", required: false
+        }
+    }    
 }
 
 def installed() {
@@ -71,6 +84,20 @@ def uninstalled() {
 
 def initialize() {
     // Subscribe to the Arduino and other contacts and motions for notifications
+    if (sendNotification && phone) {
+    	subscribe(arduino, "alertMsg", alarmMsgHandler)
+    }
+	
+	if (syncHSM) {
+    	subscribe(arduino, "system", alarmHandler)
+		subscribe(location, "hsmStatus", hsmHandler)
+        
+        // Declare/Clear variables to prevent duplicate updates
+    	state.previousAlarmValue = arduino.currentValue("system")
+        // Currently location.currentState() isn't part of API, will modify once that is available
+        //state.previousHSMValue = location.currentState("hsmStatus")?.value
+		state.previousHSMValue = ""
+    }
 
     for (int i = 1 ; i <= howMany; i++) {        
         def zoneNumber = "zone" + settings["zone$i"].toString()
@@ -131,23 +158,103 @@ def virtualDeviceHandler(evt) {
     }
 }
 
+//Handle alertMsg's from the AD2Hubitat driver.  Message is set in the device and this function just sends it.
+def alarmMsgHandler(evt) {
+    def msg = evt.value
+
+	if (phone) {
+		logDebug "sending SMS, phone: ${phone}, msg: ${msg}"
+		sendSms(phone, msg)
+	}
+}
+
+// Handle syncing the alarm panel with Hubitat Safety Monitor
+def alarmHandler(evt) {
+    def deviceName = evt.displayName
+    def deviceValue = evt.value
+    
+	if (deviceValue != "" && deviceValue != null && state.previousAlarmValue != deviceValue) {
+        state.previousAlarmValue = deviceValue
+		
+		def translatedState = translateState(deviceValue)
+        def shmState = state.previousHSMValue
+        logDebug "alarmHandler - deviceValue: ${deviceValue}, previousAlarmValue: ${state.previousAlarmValue}, translatedState: ${translatedState}, shmState: ${shmState}"
+
+        if (translatedState != shmState) {
+            // Set previous state variables to the new values to prevent loop.  When the sendLocationEvent fires this app will launch again.
+            state.previousHSMValue = translatedState
+			def hsmArmCommand = ""
+			switch (deviceValue) {
+                case "disarmed":
+                    hsmArmCommand = "disarm"
+                    break
+                case "armingStay":
+					hsmArmCommand = "armHome"
+                    break
+				case "armedStay":
+                    hsmArmCommand = "armHome"
+                    break
+                case "armingAway":
+					hsmArmCommand = "armAway"
+                    break
+				case "armedAway":
+                    hsmArmCommand = "armAway"
+                    break
+            }
+			
+			
+            sendLocationEvent(name: "hsmSetArm", value: hsmArmCommand)
+        }
+	}
+}
+
+// Handle syncing Hubitat Safety Monitor with the alarm panel
+def hsmHandler(evt) {
+    def deviceName = evt.displayName
+    def deviceValue = evt.value
+
+	if (deviceValue != "" && deviceValue != null && state.previousHSMValue != deviceValue) {
+		state.previousHSMValue = deviceValue
+		
+		def translatedState = translateState(deviceValue)
+        def alarmState = state.previousAlarmValue
+        logDebug "hsmHandler - deviceValue: ${deviceValue}, previousHSMValue: ${state.previousHSMValue}, translatedState: ${translatedState}, alarmState: ${alarmState}"
+        
+        if (translatedState != alarmState) {
+            // Set previous state variables to the new values to prevent loop.  When the Arduino command fires this app will launch again.			
+            state.previousAlarmValue = translatedState
+            switch (deviceValue) {
+                case "disarmed":
+                    arduino.disarm()
+                    break
+                case "armedHome":
+                    arduino.armStay()
+                    break
+                case "armedAway":
+                    arduino.armAway()
+                    break
+            }
+		}
+	}
+}
+
 private translateState(currentState) {
 	switch (currentState) {
 		case "disarmed":
-			return "off"
-		case "armingStay":
-			return "stay"
-        case "armedStay":
-			return "stay"
-		case "armingAway":
-			return "away"
-        case "armedAway":
-			return "away"
-        case "off":
 			return "disarmed"
-		case "stay":
+		case "armingStay":
+			return "armedHome"
+        case "armedStay":
+			return "armedHome"
+		case "armingAway":
+			return "armedAway"
+        case "armedAway":
+			return "armedAway"
+        case "disarmed":
+			return "disarmed"
+		case "armedHome":
 			return "armedStay"
-		case "away":
+		case "armedAway":
 			return "armedAway"
 	}
 }
