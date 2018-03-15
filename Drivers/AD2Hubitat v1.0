@@ -305,7 +305,6 @@ def armAway() {
 def disarm() {
 	setTimeMsg("Disarm")
     sendEvent(name: "system", value: "disarmed", displayed: true, isStateChange: true, isPhysical: true)
-    sendEvent(name: "panic", value: "disarmed", displayed: false, isStateChange: true, isPhysical: true)
     //0:msgType, 1:msgSecurityCode, 2:msgCmd
     def securityCodeVal = (securityCode) ? securityCode : ""
     sendThingShield("CODE|"+ securityCodeVal + "|1***")
