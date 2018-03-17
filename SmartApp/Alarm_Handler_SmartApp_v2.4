@@ -41,7 +41,6 @@ def controllerSetup() {
         }
         section("Other Preferences"){
             input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
-            input("syncFromHubitat", "bool", title: "Synchronize Events from Hubitat?", defaultValue: false, required: false)
             href "displaySmartThingsUrlPage", title: "Display SmartThings Dashboard Url", description: "Displays the url in the Live Logging section of the IDE."
         }
 	}
