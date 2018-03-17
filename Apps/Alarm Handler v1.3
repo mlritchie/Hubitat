@@ -1,5 +1,5 @@
 /**
- *  Alarm Handler v1.2
+ *  Alarm Handler v1.3
  *
  *  Copyright 2018 Michael Ritchie
  *
@@ -15,7 +15,7 @@
  */
  
 definition(
-    name: "Alarm Handler v1.2",
+    name: "Alarm Handler v1.3",
     namespace: "mlritchie",
     author: "Michael Ritchie",
     description: "Create virtual devices for each alarm zone, synchronize alarm events with the child devices, sychronizes alarm panel with Hubitat Safety Monitor",
@@ -39,6 +39,12 @@ def controllerSetup() {
         section("Virtual Device Name Prefix (optional.  Example 'Alarm' for Alarm Back Door)"){
             input "namePrefix", "text", title: "Name Prefix", required: false
         }
+        section("Integrate Hubitat Alarm Controller with your SmartThings Alarm Controller?") {
+			input("syncST", "bool", title: "Sync Events with SmartThings?", defaultValue: false, required: false)	
+            paragraph "If you open the Dashboard in the SmartThings SmartApp Other Hub Device Viewer Dashboard, the url needed for the field below is shown in the textbox at the bottom of the page."
+				paragraph "The URL is also written to Live Logging when you open the Dashboard Settings"				
+				input "smartThingsUrl", "text", title:"Enter the SmartThings Dashboard URL:", required: true
+			}
         section("Other Preferences"){
             input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
         }
@@ -153,6 +159,9 @@ def virtualDeviceHandler(evt) {
                 virtualDevice.sendEvent(name: "smoke", value: deviceValue == "active" ? "smoke" : "clear")
                 break
         }
+        if (syncST) {
+        	syncEventST(evt)
+        }
     } else {
         logDebug "Could not find child device '${deviceID}'"
     }
@@ -166,6 +175,10 @@ def alarmMsgHandler(evt) {
 		logDebug "sending SMS, phone: ${phone}, msg: ${msg}"
 		sendSms(phone, msg)
 	}
+    
+    if (syncST) {
+        syncEventST(evt)
+    }
 }
 
 // Handle syncing the alarm panel with Hubitat Safety Monitor
@@ -201,7 +214,6 @@ def alarmHandler(evt) {
                     hsmArmCommand = "armAway"
                     break
             }
-			
 			
             sendLocationEvent(name: "hsmSetArm", value: hsmArmCommand)
         }
@@ -267,4 +279,45 @@ private logDebug(msg) {
 	if (isDebugEnabled) {
 		log.debug "$msg"
 	}
+}
+
+def syncEventST(evt) {
+	logDebug "syncEventST: ${evt.device?.displayName} ${evt.name} ${evt.value}"
+			
+	def uri = smartThingsUri
+    def path = "${smartThingsUrl?.replace(smartThingsUri, "")}/event/${evt.name}/${evt.value}"
+	
+	if (uri) {
+		def params = [
+			uri: "${uri}",
+			path: "${path}"
+		]
+        
+		def msg = "Pushing ${evt.name} ${evt.value} to ${evt.device?.displayName}(${evt.device?.deviceNetworkId})"
+		try {
+			httpGet(params) { resp ->
+				logDebug "${msg} Response: ${resp?.status}"
+			}
+		} catch (e) {
+			log.error "${msg} Error: $e"
+		}
+	}
+	else {
+		log.warn "${smartThingsUrl} is not a valid SmartThings Url."
+	}
+}
+
+private getSmartThingsUri() {
+	return urlRemoveAfterAtText(smartThingsUrl, "/api/token/")
+}
+
+private urlRemoveAfterAtText(url, text) {
+	def i = url?.indexOf("$text")
+    if (i && i > 1) {
+        def removed = url.substring(i)
+        return url.replace("$removed", "")
+    }
+    else {
+        return url
+    }
 }
