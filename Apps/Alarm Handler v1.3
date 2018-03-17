@@ -29,7 +29,6 @@ preferences {
     page(name: "zoneSetup")
 	page(name: "alertSetup")
 }
-
 def controllerSetup() {
     dynamicPage(name: "controllerSetup", title: "Alarm Controller and Devices", nextPage:"zoneSetup", uninstall: true) {
 		section("") {
@@ -40,11 +39,9 @@ def controllerSetup() {
             input "namePrefix", "text", title: "Name Prefix", required: false
         }
         section("Integrate Hubitat Alarm Controller with your SmartThings Alarm Controller?") {
-			input("syncST", "bool", title: "Sync Events with SmartThings?", defaultValue: false, required: false)	
-            paragraph "If you open the Dashboard in the SmartThings SmartApp Other Hub Device Viewer Dashboard, the url needed for the field below is shown in the textbox at the bottom of the page."
-				paragraph "The URL is also written to Live Logging when you open the Dashboard Settings"				
-				input "smartThingsUrl", "text", title:"Enter the SmartThings Dashboard URL:", required: true
-			}
+			input("syncST", "bool", title: "Sync Events with SmartThings?", defaultValue: false, required: false)					
+			input "smartThingsUrl", "text", title:"Enter the SmartThings Alarm Handler URL:", required: true
+		}
         section("Other Preferences"){
             input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
         }
