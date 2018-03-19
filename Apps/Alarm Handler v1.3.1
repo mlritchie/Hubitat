@@ -15,7 +15,7 @@
  */
  
 definition(
-    name: "Alarm Handler v1.3",
+    name: "Alarm Handler v1.3.1",
     namespace: "mlritchie",
     author: "Michael Ritchie",
     description: "Create virtual devices for each alarm zone, synchronize alarm events with the child devices, sychronizes alarm panel with Hubitat Safety Monitor",
@@ -40,7 +40,7 @@ def controllerSetup() {
         }
         section("Integrate Hubitat Alarm Controller with your SmartThings Alarm Controller?") {
 			input("syncST", "bool", title: "Sync Events with SmartThings?", defaultValue: false, required: false)					
-			input "smartThingsUrl", "text", title:"Enter the SmartThings Alarm Handler URL:", required: true
+			input "smartThingsUrl", "text", title:"Enter the SmartThings Alarm Handler URL:", required: false
 		}
         section("Other Preferences"){
             input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
