@@ -25,6 +25,8 @@ metadata {
   	definition (name: "Twilio", namespace: "mlritchie", author: "Michael Ritchie") {
     	capability "Notification"
   	}
+	
+	attribute "lastMessage", "string"
 }
 
 preferences {
@@ -108,7 +110,8 @@ def deviceNotification(message) {
       		if (response.status != 201) {
         		log.error "Received HTTP error ${response.status}. Check your API Credentials!"
       		} else {
-        		logDebug "Message Received by Twilio: ${message}"
+                sendEvent(name: "lastMessage", value: "${message}", displayed: false)
+				logDebug "Message Received by Twilio: ${message}"
       		}
     	}
   	} else {
