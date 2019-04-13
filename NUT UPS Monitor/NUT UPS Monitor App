@@ -1,0 +1,319 @@
+/**
+ *  NUT UPS Monitor v1.0
+ *
+ *  Copyright 2019 Michael Ritchie
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ */
+
+definition(
+    name: "NUT UPS Monitor",
+    namespace: "mlritchie",
+    author: "Michael Ritchie",
+    description: "Monitor UPS via NUT",
+    iconUrl: "http://cdn.device-icons.smartthings.com/Home/home3-icn.png",
+    iconX2Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@2x.png",
+    iconX3Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@3x.png")
+
+preferences {
+	page(name: "mainPage", install: true, uninstall: true) {
+		section() {
+			href "upsSetup", title:"UPS Network Settings"
+		}
+		section() {
+			href "alertSetup", title:"Notification Preferences"
+		}
+		section() {
+			href "actionSetup", title:"Action Settings"
+		}
+		section("Other Preferences"){
+			input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
+		}
+	}
+	page(name: "upsSetup")
+	page(name: "alertSetup")
+	page(name: "actionSetup")
+}
+
+def upsSetup() {
+    dynamicPage(name: "upsSetup", title: "UPS Settings", install: false) {
+        section("Please enter the network settings for the NUT Server."){
+            input name: "upsLabel", type: "text", description: "Label used when creating child UPS device.", title: "Name of UPS Device", required:true
+			input name: "nutServerHost", type: "text", description: "IP or hostname of NUT server", title: "NUT server hostname", required:true
+        	input name: "nutServerPort", type: "number", description: "Port number of NUT server", title: "NUT server port number", defaultValue: 3493, range: "1..65535", required:true
+			input name: "nutPollingInterval", type: "number", description: "Polling interval", title: "Polling interval", defaultValue: 10, range: "1..600"
+        }
+	}
+}
+
+def alertSetup() {
+    dynamicPage(name: "alertSetup", title: "Notification Settings", install:false) {
+		section("Receive UPS messages."){
+            input "sendNotification", "bool", title: "Send notifications?", defaultValue: false, submitOnChange:true
+			if (settings.sendNotification == true) {
+				input "sendAlarm", "bool", title: "Send alarm messages?", defaultValue: true
+				input "sendPowerSource", "bool", title: "Send power source changes?", defaultValue: true
+				input "suppressStartup", "bool", title: "Suppress notifications on hub startup?", defaultValue: true
+				input "notificationDevices", "capability.notification", title: "Use Notification Devices", required: false, multiple: true
+				input "phone", "phone", title: "Phone Number(s) (Phone number for SMS format +1<10 digits> separate multiple with ,)", required: false
+			}
+        }
+    }    
+}
+
+def actionSetup() {
+    dynamicPage(name: "actionSetup", title: "Action Settings", install: false) {
+        section("<b>HE Hub Shutdown Options</b>", hidden: false, hideable: true){
+			//input "testSwitch", "capability.switch", title: "Test", multiple: true, required: false
+			input "shutDownHub", "bool", title: "Shutdown this HE hub?", defaultValue: false
+			input "batteryPercentHE", "number", title: "When UPS is on battery and battery % drops below:", required: false, defaultValue: 10
+			input "otherActions", "bool", title: "Would you like to setup any additional actions?", defaultValue: false, submitOnChange:true
+			if (settings.otherActions == true) {
+				input "howMany", "number", title: "How many actions do you want to setup?", required: false, submitOnChange:true
+			}
+		}
+		if (settings.otherActions == true && settings.howMany && settings.howMany > 0) {
+			section("Actions taken based on UPS events."){
+				for (int i=1;i <= settings.howMany; i++) {
+					section("Action " + i) {
+						input "description" + i, "string", title: "Description:", required: true
+						input "batteryPercent" + i, "number", title: "When UPS is on battery and battery % drops below:", required: true
+						input "url" + i, "string", title: "URL Path", required: true
+						input "httpMethod" + i, "enum", title: "HTTP Method", options:["Post","Get"], required: true
+						input "requireCredentials" + i, "bool", title: "Require Credentials?", defaultValue: false, submitOnChange:true
+						if (settings."requireCredentials${i}" == true) {
+							input name: "userName" + i, type: "text", description: "Username:", required: true
+        					input name: "userPassword" + i, type: "password", description: "Password:", required: true
+						}
+					}
+        		}
+			}
+        }
+	}
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	unsubscribe()
+	initialize()
+}
+    
+def uninstalled() {
+	removeChildDevices(getChildDevices())
+}
+
+def initialize() {    
+    def deviceID = "ups_" + upsLabel.toLowerCase().trim().replaceAll(" ", "_");
+    def childDevice = getChildDevice(deviceID)
+    if (!childDevice) {
+		logDebug("creating device: deviceID: ${deviceID}")
+        childDevice = addChildDevice("mlritchie", "NUT UPS Device", deviceID, null, [name: "NUT UPS Device", label: upsLabel])
+		childDevice.updateSetting("nutServerHost",[value:"${nutServerHost}",type:"text"])
+		childDevice.updateSetting("nutServerPort",[value:"${nutServerPort}",type:"number"])
+		childDevice.updateSetting("nutPollingInterval",[value:"${nutPollingInterval}",type:"number"])
+        logDebug("created device: ${deviceID}")
+    }
+	
+	if (suppressStartup) {
+		subscribe(location, "systemStart", restartHandler)
+	}
+
+	if (sendNotification && (notificationDevices || phone)) {
+		if (sendAlarm) {
+			logDebug("subscribing deviceAlarm")
+			subscribe(childDevice, "deviceAlarm", notificationHandler)
+		}
+		if (sendPowerSource) {
+			logDebug("subscribing powerSource")
+			subscribe(childDevice, "powerSource", notificationHandler)
+		}
+    }
+	
+	if (shutDownHub || (otherActions && howMany > 0)) {
+		subscribe(childDevice, "battery", actionHandler)
+		
+		if (shutDownHub) {
+			state.shutDownHub = false
+		}
+		
+		if (otherActions && howMany > 0) {
+			for (int i=1;i <= howMany; i++) {
+				state."action${i}" = false
+			}
+		}
+	}
+	
+	subscribe(testSwitch, "level", actionHandler)
+}
+
+def restartHandler(evt) {
+	logDebug("restartHandler evt.dateValue: ${evt.date}")
+	state.startupTime = evt.date
+}
+
+def notificationHandler(evt) {
+	def attributeName = evt.name
+    def attributeValue = evt.value
+	def deviceName = evt.displayName
+	logDebug "notificationHandler, attributeName: ${attributeName}, attributeValue: ${attributeValue}, deviceName: ${deviceName}"
+	def sendMsg = false
+	
+	if (suppressStartup && state.startupTime) {
+		Date nowDateTime = new Date(now())
+		Date tempTimeAgo = new Date(now() - (1000 * nutPollingInterval).toLong())
+		Date startupTime = new Date().parse("yyy-MM-dd'T'HH:mm:ssZ", state.startupTime)
+		logDebug "notificationHandler suppressStartup - comparing timestamps: ${tempTimeAgo} < ${startupTime}, nowDateTime: ${nowDateTime}"
+		
+		if (tempTimeAgo < startupTime) {
+			state.remove("startupTime")
+			logDebug "notificationHandler suppressing messages"
+		} else {
+			sendMsg = true
+			logDebug "notificationHandler sending messages"
+		}
+	}
+	
+	if (sendMsg) {
+		def msg = "";
+		if (attributeName == "deviceAlarm") {
+			msg = "${deviceName}: ${attributeValue}"
+		} else if (attributeName == "powerSource") {
+			msg = "${deviceName} power source is ${attributeValue}"
+		}
+
+		if (notificationDevices) {
+			logDebug "sending notification, notificationDevices: ${notificationDevices}, msg: ${msg}"
+			notificationDevices?.deviceNotification(msg)
+		}
+
+		if (phone) {
+			logDebug "sending SMS, phone: ${phone}, msg: ${msg}"
+			sendSms(phone, msg)
+		}
+	}
+}
+
+def actionHandler(evt) {
+	def deviceValue = evt.value
+	if (deviceValue.indexOf(".") > -1) {
+		deviceValue = deviceValue.substring(0, deviceValue.indexOf("."))
+	}
+	deviceValue = Long.valueOf(deviceValue)
+	logDebug "actionHandler - deviceValue: ${deviceValue}"
+	
+	if (otherActions && howMany > 0) {
+		for (int i=1;i <= howMany; i++) {
+			def batteryPercent = settings."batteryPercent${i}"
+			def description = settings."description${i}"
+			def url = settings."url${i}"
+			def httpMethod = settings."httpMethod${i}"
+			def actionState = state."action${i}"
+			def requireCredentials = settings."requireCredentials${i}"
+			
+			logDebug "actionHandler - batteryPercent: ${batteryPercent}, description: ${description}, url: ${url}, httpMethod: ${httpMethod}, requireCredentials: ${requireCredentials}, actionState: ${actionState}"
+			if (actionState == false && deviceValue <= batteryPercent) {
+				state."action${i}" = true
+				def credentials
+				if (requireCredentials) {
+					credentials = encodeCredentials(settings."userName${i}", settings."userPassword${i}")
+				}
+				otherAction(url, httpMethod, credentials)
+				logDebug "actionHandler - executing action${i}: ${description}"
+				continue
+			}
+			if (actionState == true && deviceValue > batteryPercent) {
+				state."action${i}" = false
+				continue
+			}
+		}
+	}
+	
+	if (shutDownHub) {
+		logDebug "actionHandler - state.shutDownHub: ${state.shutDownHub}, deviceValue(${deviceValue} <= batteryPercentHE(${batteryPercentHE})"
+		if (state.shutDownHub == false && deviceValue <= batteryPercentHE) {
+			state.shutDownHub = true
+			logDebug "actionHandler - shutting down HE hub"
+			shutdownHubitat()
+		} else if (state.shutDownHub == true && deviceValue > batteryPercentHE) {
+			state.shutDownHub = false
+			logDebug "actionHandler - shutDownHub == false"
+		}
+	}
+}
+
+def shutdownHubitat(ipAddress) {
+	if (!ipAddress) {
+		def hub = location.hubs[0]
+		ipAddress = hub.getDataValue("localIP")
+	}
+	logDebug "shutdownHubitat - ipAddress: ${ipAddress}"
+	
+	if (ipAddress) {
+		def params = [
+			uri: "http://" + ipAddress + ":8080/hub/shutdown",
+		]
+		
+		try {
+			httpPost(params){response ->
+				log.warn "Hubitat hub shutting down: ${ipAddress}, response.status: ${response.status}"
+			}
+		} catch (Exception e) {
+			log.error "Could not shutdown Hubitat hub ${ipAddress}: ${e}"
+		}
+	} else {
+		log.error "IP Address not available, Hubitat hub cannot shutdown."
+	}
+}
+
+def otherAction(url, httpMethod, credentials) {
+	logDebug "otherAction - httpMethod: ${httpMethod}, url: ${url}, credentials: ${credentials}"
+	if (!url || !httpMethod) {
+		log.error "otherAction - url or httpMethod not provided"
+		return
+	}
+	
+	def params = [
+		uri: url,
+		headers: ["Authorization" : credentials]
+	]
+
+	try {
+		if (httpMethod == "Post") {
+			httpPost(params){response ->
+				logDebug "otherAction - ${url}, response.status: ${response.status}"
+			}
+		} else if (httpMethod == "Get") {
+			httpGet(params){response ->
+				logDebug "otherAction - ${url}, response.status: ${response.status}"
+			}
+		}
+	} catch (Exception e) {
+		log.error "Could not execute other action ${url}: ${e}"
+	}
+}
+
+private encodeCredentials(username, password){
+	def userpassascii = "${username}:${password}"
+	def userpass = "Basic " + userpassascii.bytes.encodeBase64().toString()
+    return userpass
+}
+    
+private removeChildDevices(delete) {
+	delete.each {deleteChildDevice(it.deviceNetworkId)}
+}
+
+private logDebug(msg) {
+	if (isDebugEnabled) {
+		log.debug "$msg"
+	}
+}
