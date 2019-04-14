@@ -165,8 +165,7 @@ def notificationHandler(evt) {
 	def attributeName = evt.name
     def attributeValue = evt.value
 	def deviceName = evt.displayName
-	logDebug "notificationHandler, attributeName: ${attributeName}, attributeValue: ${attributeValue}, deviceName: ${deviceName}"
-	def sendMsg = false
+	def sendMsg = true
 	
 	if (suppressStartup && state.startupTime) {
 		Date nowDateTime = new Date(now())
@@ -176,12 +175,13 @@ def notificationHandler(evt) {
 		
 		if (tempTimeAgo < startupTime) {
 			state.remove("startupTime")
+			sendMsg = false
 			logDebug "notificationHandler suppressing messages"
 		} else {
-			sendMsg = true
 			logDebug "notificationHandler sending messages"
 		}
 	}
+	logDebug "notificationHandler, attributeName: ${attributeName}, attributeValue: ${attributeValue}, deviceName: ${deviceName}, sendMsg: ${sendMsg}"
 	
 	if (sendMsg) {
 		def msg = "";
