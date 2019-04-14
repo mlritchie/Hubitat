@@ -105,20 +105,12 @@ def parseValues(String[] msg) {
 	
 	// If no values have changed stop parsing to minimize logging
 	if (state.upsData.containsKey(key) && state.upsData.get(key) == value) {
+		//parent.logDebug "Value same"
 		return
 	} else {
 		parent.logDebug "Value changed key: ${key}, from: ${state.upsData.get(key)}, to: ${value}"
-		def upsValue = ["${key}" : value]
-		if (state.upsData.size() == 0) {
-			state.upsData = upsValue
-		} else {
-			state.upsData << upsValue
-		}
-		if (state.upsUpdates.size() == 0) {
-			state.upsUpdates = upsValue
-		} else {
-			state.upsUpdates << upsValue
-		}
+		state.upsData["${key}"] = value
+		state.upsUpdates["${key}"] = value
 	}
 }
 
