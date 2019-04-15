@@ -14,7 +14,7 @@
 <li>This app automatically creates the child device</li>
 </ul>
 </li>
-<li>Click into the UPS Network Settings and name your child UPS device, set the NUT server and port number and polling interval</li>
+<li>Click into the UPS Network Settings and name your child UPS device, set the NUT server and port number (default port worked on my QNAP) and polling interval</li>
 <li>If interested click into Notification Preferences and set the notifications you wish to receive</li>
 <li>If interested click into Action Settings if you wish to shut down your HE hub based on a battery percent or perform other REST Post or Get action to do such things as shut down additional HE hubs</li>
 <li>Debugging is disabled by default however feel free to enable it.&nbsp; Turning it on in the app will also debug data in the child device.&nbsp; This does generate a ton of logging so make sure you turn it off when you are done debugging.</li>
