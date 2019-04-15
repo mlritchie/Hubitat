@@ -65,6 +65,7 @@ def updated(){
 
 def initialize(){
 	state.remove("batteryDate")
+	state.remove("batteryRuntime")
 	state.upsData = [:]
 	state.lastPollTime = ""
 	
