@@ -18,9 +18,8 @@ definition(
     namespace: "mlritchie",
     author: "Michael Ritchie",
     description: "Monitor UPS via NUT",
-    iconUrl: "http://cdn.device-icons.smartthings.com/Home/home3-icn.png",
-    iconX2Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@2x.png",
-    iconX3Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@3x.png")
+    iconUrl: "", iconX2Url: "", iconX3Url: ""
+)
 
 preferences {
 	page(name: "mainPage", install: true, uninstall: true) {
@@ -46,9 +45,9 @@ def upsSetup() {
     dynamicPage(name: "upsSetup", title: "UPS Settings", install: false) {
         section("Please enter the network settings for the NUT Server."){
             input name: "upsLabel", type: "text", description: "Label used when creating child UPS device.", title: "Name of UPS Device", required:true
-			input name: "nutServerHost", type: "text", description: "IP or hostname of NUT server", title: "NUT server hostname", required:true
+			input name: "nutServerHost", type: "text", description: "IP or hostname of NUT server", title: "NUT server hostname/IP", required:true
         	input name: "nutServerPort", type: "number", description: "Port number of NUT server", title: "NUT server port number", defaultValue: 3493, range: "1..65535", required:true
-			input name: "nutPollingInterval", type: "number", description: "Polling interval", title: "Polling interval", defaultValue: 10, range: "1..600"
+			input name: "nutPollingInterval", type: "number", description: "Polling interval", title: "Polling interval", defaultValue: 15, range: "1..600"
         }
 	}
 }
@@ -71,7 +70,6 @@ def alertSetup() {
 def actionSetup() {
     dynamicPage(name: "actionSetup", title: "Action Settings", install: false) {
         section("<b>HE Hub Shutdown Options</b>", hidden: false, hideable: true){
-			//input "testSwitch", "capability.switch", title: "Test", multiple: true, required: false
 			input "shutDownHub", "bool", title: "Shutdown this HE hub?", defaultValue: false
 			input "batteryPercentHE", "number", title: "When UPS is on battery and battery % drops below:", required: false, defaultValue: 10
 			input "otherActions", "bool", title: "Would you like to setup any additional actions?", defaultValue: false, submitOnChange:true
