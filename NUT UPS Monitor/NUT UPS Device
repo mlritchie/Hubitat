@@ -1,5 +1,5 @@
 /**
- *  NUT UPS Driver for Hubitat Elevation
+ *  NUT UPS Driver for Hubitat Elevation v1.1
  *
  *  Child driver for the NUT UPS Monitor app.  A child UPS device is created automatically after installing and
  *  configuring the settings in the NUT UPS Monitor application.
@@ -44,10 +44,20 @@ metadata {
 		// The QNAP NAS seems to automatically disconnect the telnet session after 15-20 seconds.  Changed code to start a new telnet connection for each poll event.
         //input name: "nutReconnectDelay", type: "number", description: "Network reconnect delay", title: "Number of seconds to wait before initiating reconnect in case the connection goes down for whatever reason", defaultValue: 10, range: "1..600"
         input name: "nutPollingInterval", type: "number", description: "Polling interval", title: "Polling interval", defaultValue: 10, range: "1..600"
+		input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
+		input("pauseUpdates", "bool", title: "Pause updates", defaultValue: false, required: false)
     }
 }
 
 def installed(){
+	if (isDebugEnabled == null) {
+		device.updateSetting("isDebugEnabled",[value:"false",type:"bool"])	
+	}
+	
+	if (pauseUpdates == null) {
+		device.updateSetting("pauseUpdates",[value:"false",type:"bool"])	
+	}
+	
 	initialize()
 }
 
@@ -64,12 +74,14 @@ def updated(){
 }
 
 def initialize(){
-	state.remove("batteryDate")
-	state.remove("batteryRuntime")
-	state.upsData = [:]
-	state.lastPollTime = ""
-	
-	refresh()
+	if (!pauseUpdates) {
+		state.remove("batteryDate")
+		state.remove("batteryRuntime")
+		state.upsData = [:]
+		state.lastPollTime = ""
+
+		refresh()
+	}
 }
 
 def refresh() {
@@ -94,7 +106,7 @@ def refresh() {
 }
 
 def parse(String message) {
-	parent.logDebug "Received: ${message}"
+	logDebug "Received: ${message}"
 	
 	String[] msg = message.split("\"?( |\$)(?=(([^\"]*\"){2})*[^\"]*\$)\"?")
 	if (msg[0] == "UPS") {
@@ -121,7 +133,7 @@ def parseValues(String[] msg) {
 	if (state.upsData.containsKey(key) && state.upsData.get(key) == value) {
 		return
 	} else {
-		parent.logDebug "Value changed key: ${key}, from: ${state.upsData.get(key)}, to: ${value}"
+		logDebug "Value changed key: ${key}, from: ${state.upsData.get(key)}, to: ${value}"
 		state.upsData["${key}".toString()] = value
 	}
 
@@ -137,10 +149,10 @@ def parseValues(String[] msg) {
 			def runtime = (Integer.parseInt(value) / 60) + " minutes"
 			state.batteryRuntime = runtime
 			
-			if (device.currentValue("powerSource") != "mains" && device.currentValue("batteryRuntime") == "mains") {
-				result << createEvent(name: 'batteryRuntime', value: runtime, descriptionText: "Remaining runtime is ${runtime}")
-			} else if (device.currentValue("powerSource") == "mains" && device.currentValue("batteryRuntime") != "mains") {
+			if (device.currentValue("powerSource") == "mains" && device.currentValue("batteryRuntime") != "mains") {
 				result << createEvent(name: 'batteryRuntime', value: "mains", descriptionText: "Remaining runtime is ${runtime}")
+			} else if (device.currentValue("powerSource") != "mains") {
+				result << createEvent(name: 'batteryRuntime', value: runtime, descriptionText: "Remaining runtime is ${runtime}")
 			}
 			break;
 		case "ups.alarm":
@@ -158,7 +170,7 @@ def parseValues(String[] msg) {
 			result << createEvent(name: 'powerSource', value: powerSource, descriptionText: "Power source is ${powerSource}")
 
 			if (!statuses.contains('ALARM') && device.currentValue("deviceAlarm") != "All Clear") {
-				parent.logDebug "Alarm no longer detected."
+				logDebug "Alarm no longer detected."
 				result << createEvent(name: 'deviceAlarm', value: 'All Clear', descriptionText: "Alarm removed.")
 			}
 
@@ -195,6 +207,12 @@ def telnetStatus(String status) {
 }
 
 def sendCommand(cmd) {
-	parent.logDebug "sendCommand - Sending ${cmd}"
+	logDebug "sendCommand - Sending ${cmd}"
 	return sendHubCommand(new hubitat.device.HubAction("${cmd}", hubitat.device.Protocol.TELNET))
+}
+
+private logDebug(msg) {
+	if (isDebugEnabled) {
+		log.debug "$msg"
+	}
 }
