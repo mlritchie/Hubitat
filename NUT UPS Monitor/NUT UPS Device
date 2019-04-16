@@ -85,23 +85,25 @@ def initialize(){
 }
 
 def refresh() {
-	try {
-		telnetConnect([termChars:[10]], nutServerHost, nutServerPort.toInteger(), null, null)
-		//pauseExecution(1000)
-	} catch (err) {
-		log.error "Refresh telnet connection error: ${err}"
-		if (state.upsName) {
+	if (!pauseUpdates) {
+		try {
+			telnetConnect([termChars:[10]], nutServerHost, nutServerPort.toInteger(), null, null)
+			//pauseExecution(1000)
+		} catch (err) {
+			log.error "Refresh telnet connection error: ${err}"
+			if (state.upsName) {
+				runIn(nutPollingInterval, refresh)
+			}
+		}
+
+		if (!state.upsName) {
+			sendCommand("LIST UPS")
 			runIn(nutPollingInterval, refresh)
 		}
-	}
-	
-	if (!state.upsName) {
-		sendCommand("LIST UPS")
-		runIn(nutPollingInterval, refresh)
-	}
-	if (state.upsName) {
-		sendCommand("LIST VAR ${state.upsName}")
-		runIn(nutPollingInterval, refresh)
+		if (state.upsName) {
+			sendCommand("LIST VAR ${state.upsName}")
+			runIn(nutPollingInterval, refresh)
+		}
 	}
 }
 
