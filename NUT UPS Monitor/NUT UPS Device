@@ -1,5 +1,5 @@
 /**
- *  NUT UPS Driver for Hubitat Elevation v1.1
+ *  NUT UPS Driver for Hubitat Elevation v1.2
  *
  *  Child driver for the NUT UPS Monitor app.  A child UPS device is created automatically after installing and
  *  configuring the settings in the NUT UPS Monitor application.
@@ -23,6 +23,10 @@
  *
  */
 
+import groovy.transform.Field
+
+@Field List stateVariables = ["battery.charge","battery.mfr.date","battery.runtime","ups.alarm","ups.status"]
+
 metadata {
 	definition (name: "NUT UPS Device", namespace: "mlritchie", author: "Michael Ritchie") {
 		capability "Initialize"
@@ -41,11 +45,10 @@ metadata {
 	preferences {
         input name: "nutServerHost", type: "text", description: "IP or hostname of NUT server", title: "NUT server hostname"
         input name: "nutServerPort", type: "number", description: "Port number of NUT server", title: "NUT server port number", defaultValue: 3493, range: "1..65535"
-		// The QNAP NAS seems to automatically disconnect the telnet session after 15-20 seconds.  Changed code to start a new telnet connection for each poll event.
-        //input name: "nutReconnectDelay", type: "number", description: "Network reconnect delay", title: "Number of seconds to wait before initiating reconnect in case the connection goes down for whatever reason", defaultValue: 10, range: "1..600"
         input name: "nutPollingInterval", type: "number", description: "Polling interval", title: "Polling interval", defaultValue: 10, range: "1..600"
-		input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
-		input("pauseUpdates", "bool", title: "Pause updates", defaultValue: false, required: false)
+		input name: "displayAllVariables", type: "bool", title: "Display all variables?", defaultValue: false, required: false
+		input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
+		input name: "pauseUpdates", type: "bool", title: "Pause updates", defaultValue: false, required: false
     }
 }
 
@@ -56,6 +59,10 @@ def installed(){
 	
 	if (pauseUpdates == null) {
 		device.updateSetting("pauseUpdates",[value:"false",type:"bool"])	
+	}
+	
+	if (displayAllVariables == null) {
+		device.updateSetting("displayAllVariables",[value:"false",type:"bool"])	
 	}
 	
 	initialize()
@@ -76,9 +83,14 @@ def updated(){
 def initialize(){
 	if (!pauseUpdates) {
 		state.remove("batteryDate")
-		state.remove("batteryRuntime")
-		state.upsData = [:]
 		state.lastPollTime = ""
+		
+		if (displayAllVariables) {
+			state.remove("batteryRuntime")
+			state.upsData = [:]
+		} else {
+			state.remove("upsData")
+		}
 
 		refresh()
 	}
@@ -88,7 +100,6 @@ def refresh() {
 	if (!pauseUpdates) {
 		try {
 			telnetConnect([termChars:[10]], nutServerHost, nutServerPort.toInteger(), null, null)
-			//pauseExecution(1000)
 		} catch (err) {
 			log.error "Refresh telnet connection error: ${err}"
 			if (state.upsName) {
@@ -101,7 +112,14 @@ def refresh() {
 			runIn(nutPollingInterval, refresh)
 		}
 		if (state.upsName) {
-			sendCommand("LIST VAR ${state.upsName}")
+			if (displayAllVariables) {
+				sendCommand("LIST VAR ${state.upsName}")
+			} else {
+				for (int i=0;i < stateVariables.size(); i++) {
+					sendCommand("GET VAR ${state.upsName} ${stateVariables[i]}")
+				}
+				sendCommand("LOGOUT")
+			}
 			runIn(nutPollingInterval, refresh)
 		}
 	}
@@ -115,15 +133,22 @@ def parse(String message) {
 		state.upsName = msg[1]
 		refresh()
 	} else if (message == "BEGIN LIST VAR " + state.upsName) {
-		// Do nothinhg
+		// Do nothing
 	} else if (msg[0] == "VAR") {
 		parseValues(msg.drop(2))
+	} else if (message == "OK Goodbye") {
+		setLastPoll()
 	} else if (message == "END LIST VAR " + state.upsName) {
-		def nowDateTime = new java.text.SimpleDateFormat("MM/dd hh:mm a")
-		nowDateTime.setTimeZone(location.timeZone)
-		nowDateTime = nowDateTime.format(new Date()).toString()
-		state.lastPollTime = nowDateTime
+		sendCommand("LOGOUT")
+		setLastPoll()
 	}
+}
+
+def setLastPoll() {
+	def nowDateTime = new java.text.SimpleDateFormat("MM/dd hh:mm a")
+	nowDateTime.setTimeZone(location.timeZone)
+	nowDateTime = nowDateTime.format(new Date()).toString()
+	state.lastPollTime = nowDateTime
 }
 
 def parseValues(String[] msg) {
@@ -131,12 +156,14 @@ def parseValues(String[] msg) {
 	def key = msg[0]
 	def value = msg.length > 1 ? msg[1] : null
 	
-	// If no values have changed stop parsing to minimize logging
-	if (state.upsData.containsKey(key) && state.upsData.get(key) == value) {
-		return
-	} else {
-		logDebug "Value changed key: ${key}, from: ${state.upsData.get(key)}, to: ${value}"
-		state.upsData["${key}".toString()] = value
+	if (displayAllVariables) {
+		// If no values have changed stop parsing to minimize logging
+		if (state.upsData.containsKey(key) && state.upsData.get(key) == value) {
+			return
+		} else {
+			logDebug "Value changed key: ${key}, from: ${state.upsData.get(key)}, to: ${value}"
+			state.upsData["${key}".toString()] = value
+		}
 	}
 
 	switch (key) {
@@ -203,9 +230,9 @@ def parseValues(String[] msg) {
 }
 
 def telnetStatus(String status) {
-	log.error("telnetStatus: ${status}")
-	//unschedule()
-	//runIn(nutReconnectDelay.toInteger(), connectToServer)
+	if (status.indexOf("receive error: Stream is closed") == -1) {
+		log.error("telnetStatus: ${status}")
+	}
 }
 
 def sendCommand(cmd) {
