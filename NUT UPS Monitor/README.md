@@ -1,10 +1,12 @@
 <p><span style="text-decoration: underline; font-size: 12pt;"><strong>NUT UPS Monitor</strong></span></p>
 <p>This is a telnet based integration between your Hubitat Elevation (HE) and your NAS.&nbsp; The&nbsp;NAS automatically drops the telnet connection after 20-30 seconds so this integration creates a new telnet connection each time and then disconnects.&nbsp; The following attributes are gathered from the NAS NUT Server:</p>
-<p>Battery - % charged</p>
-<p>Battery Run Time - will report "mains" while the UPS is on mains power but will change to the number of minutes remaining as reported by the UPS once on battery power.</p>
-<p>UPS Alarm - will report any alarms reported by the UPS such as Change Battery</p>
-<p>Power Source - mains or battery</p>
-<p>UPS Status - Online, Offline, On Battery, Low Battery, Battery needs replacing, Alarm</p>
+<ul style="list-style-position: inside;">
+<li>Battery - % charged</li>
+<li>Battery Run Time - will report "mains" while the UPS is on mains power but will change to the number of minutes remaining as reported by the UPS once on battery power.</li>
+<li>UPS Alarm - will report any alarms reported by the UPS such as Change Battery</li>
+<li>Power Source - mains or battery</li>
+<li>UPS Status - Online, Offline, On Battery, Low Battery, Battery needs replacing, Alarm</li>
+</ul>
 <p>&nbsp;</p>
 <p>NAS Settings (based on using a QNAP NAS using QTS4.3 or later:</p>
 <ul style="list-style-position: inside;">
@@ -47,4 +49,3 @@
 </ul>
 </li>
 </ul>
-<p>&nbsp;</p>
