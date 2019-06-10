@@ -31,14 +31,15 @@ preferences {
 }
 
 metadata {
-    definition (name: "Irrigation Controller 8 Zones Hubitat v1", version: "1", author: "stan@dotson.info", namespace: "d8adrvn/smart_sprinkler") {
+    definition (name: "Irrigation Controller 8 Zones Hubitat v1", version: "1.1", author: "stan@dotson.info", namespace: "d8adrvn/smart_sprinkler") {
         
         capability "Switch"
         capability "Momentary"
 		
-		command "relayOn", [[name:"Relay On", type: "ENUM", constraints: [1,2,3,4,5,6,7,8]]]
-		command "relayOnFor", ["Zone Number","Duration"]
-		command "relayOff", [[name:"Relay Off", type: "ENUM", constraints: [1,2,3,4,5,6,7,8]]]
+		command "relayOn", [[name:"Relay On", type: "ENUM", constraints: ["1","2","3","4","5","6","7","8"]]]
+		command "relayOnFor", ["Zone","Duration"]
+		command "relayOff", [[name:"Relay Off", type: "ENUM", constraints: ["1","2","3","4","5","6","7","8"]]]
+		command "createZone", ["DEVICE LABEL", "ZONE NUMBER"]
 		
         command "update" 
         command "enablePump"
@@ -102,6 +103,21 @@ def parse(String description) {
 				def result = createEvent(name: name, value: tokens[x], displayed: isDisplayed, isStateChange: true, isPhysical: isPhysical)
 				logDebug "Parse returned ${result?.descriptionText}"
 				sendEvent(result)
+				
+				//Update child devices if on or off
+				if (value.indexOf("on") > -1 || value.indexOf("off") > -1) {
+					def zoneNumber = value[value.length() - 1];
+					def zoneValue = value.indexOf("on") > -1 ? "on" : "off"
+					if (zoneNumber.isNumber()) {
+						def deviceID = "irrigation_zone-" + zoneNumber
+						def childDevice = getChildDevice(deviceID)
+						if (childDevice) {
+							childDevice.sendEvent(name:"switch", value: zoneValue)
+						} else {
+							log.error "Could not find child device: ${deviceID}"
+						}
+					}
+				}
 			}
 		}
     }
@@ -228,6 +244,17 @@ def parseThingShield(String description) {
 	} else {
 		return description
 	}
+}
+
+def createZone(deviceLabel, zoneNumber){
+    try{
+		def deviceID = "irrigation_zone-" + zoneNumber.toString()
+		logDebug "Attempting to create Virtual Device: Label: ${deviceLabel}, Zone Number: ${zoneNumber}"
+		childDevice = addChildDevice("mlritchie", "Irrigation Controller Zone", "${deviceID}", [label: "${deviceLabel}", isComponent: false])
+    	logDebug "createDevice Success"
+    } catch (Exception e) {
+         log.warn "Unable to create device."
+    }
 }
 
 private logDebug(msg) {
