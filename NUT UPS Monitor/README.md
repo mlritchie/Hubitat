@@ -1,4 +1,6 @@
 <p><span style="text-decoration: underline; font-size: 12pt;"><strong>NUT UPS Monitor</strong></span></p>
+<p>Please see this Hubitat Community thread for more details and help on this integration:</p>
+<p><a title="https://community.hubitat.com/t/qnap-nas-integrations-for-ups-monitoring-nodered-home-bridge-etc/17086" href="https://community.hubitat.com/t/qnap-nas-integrations-for-ups-monitoring-nodered-home-bridge-etc/17086">https://community.hubitat.com/t/qnap-nas-integrations-for-ups-monitoring-nodered-home-bridge-etc/17086</a></p>
 <p>This is a telnet based integration between your Hubitat Elevation (HE) and your NAS.&nbsp; The&nbsp;NAS automatically drops the telnet connection after 20-30 seconds so this integration creates a new telnet connection each time and then disconnects.&nbsp; The following attributes are gathered from the NAS NUT Server:</p>
 <ul style="list-style-position: inside;">
 <li>Battery - % charged</li>
