@@ -23,7 +23,7 @@ preferences {
 }
 
 metadata {
-    definition (name: "Irrigation Controller Zone", version: "1", author: "Michael Ritchie", namespace: "mlritchie") {
+    definition (name: "Irrigation Controller Zone", version: "1.1", author: "Michael Ritchie", namespace: "mlritchie") {
         capability "Switch"
 		
 		command "zoneOnFor", [[name:"Zone On For", type: "NUMBER", description: "How many minutes?"]]
@@ -51,6 +51,6 @@ def checkTime(t) {
 }
 
 def getZoneNumber() {
-	def networkID = device.deviceNetworkId.toString().split("-")
-	return networkID[1]
+	def networkID = device.deviceNetworkId.toString().split("_")
+	return networkID[1].replaceAll("[^\\d]", "" )
 }
