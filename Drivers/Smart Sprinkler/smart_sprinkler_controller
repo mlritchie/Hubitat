@@ -31,7 +31,7 @@ preferences {
 }
 
 metadata {
-    definition (name: "Irrigation Controller 8 Zones Hubitat v1", version: "1.1", author: "stan@dotson.info", namespace: "d8adrvn/smart_sprinkler") {
+    definition (name: "Irrigation Controller 8 Zones Hubitat v1", version: "1.2", author: "stan@dotson.info", namespace: "d8adrvn/smart_sprinkler") {
         
         capability "Switch"
         capability "Momentary"
@@ -86,36 +86,34 @@ def parse(String description) {
 
             //manage and display events
             def currentVal = device?.currentValue(name)
+			def newValue = tokens[x].replaceAll("[^A-Za-z]", "" )
             def isDisplayed = true
             def isPhysical = true
             
             //manage which events are displayed in log
-			if (tokens[x]?.contains("q")) {
+			if (newValue == "q") {
 				isDisplayed = false
 				isPhysical = false
 			}
-			if (tokens[x]?.contains("off") && currentVal?.contains("q")) {
+			if (newValue == "off" && currentVal == "q") {
 				isDisplayed = false
 				isPhysical = false
 			}
+			
 			//send an event if there is a state change
-			if (currentVal != tokens[x]) {
-				def result = createEvent(name: name, value: tokens[x], displayed: isDisplayed, isStateChange: true, isPhysical: isPhysical)
+			if (currentVal != newValue) {
+				def result = createEvent(name: name, value: newValue, displayed: isDisplayed, isStateChange: true, isPhysical: isPhysical)
 				logDebug "Parse returned ${result?.descriptionText}"
 				sendEvent(result)
 				
 				//Update child devices if on or off
-				if (value.indexOf("on") > -1 || value.indexOf("off") > -1) {
-					def zoneNumber = value[value.length() - 1];
-					def zoneValue = value.indexOf("on") > -1 ? "on" : "off"
-					if (zoneNumber.isNumber()) {
-						def deviceID = "irrigation_zone-" + zoneNumber
-						def childDevice = getChildDevice(deviceID)
-						if (childDevice) {
-							childDevice.sendEvent(name:"switch", value: zoneValue)
-						} else {
-							log.error "Could not find child device: ${deviceID}"
-						}
+				if (newValue in ["on", "off"]) {
+					def deviceID = "irrigation_" + name
+					def childDevice = getChildDevice(deviceID)
+					if (childDevice) {
+						childDevice.sendEvent(name:"switch", value: newValue)
+					} else {
+						log.error "Could not find child device: ${deviceID}"
 					}
 				}
 			}
@@ -248,7 +246,7 @@ def parseThingShield(String description) {
 
 def createZone(deviceLabel, zoneNumber){
     try{
-		def deviceID = "irrigation_zone-" + zoneNumber.toString()
+		def deviceID = "irrigation_zone" + zoneNumber.toString()
 		logDebug "Attempting to create Virtual Device: Label: ${deviceLabel}, Zone Number: ${zoneNumber}"
 		childDevice = addChildDevice("mlritchie", "Irrigation Controller Zone", "${deviceID}", [label: "${deviceLabel}", isComponent: false])
     	logDebug "createDevice Success"
