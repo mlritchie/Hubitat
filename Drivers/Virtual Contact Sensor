@@ -14,7 +14,7 @@
  *
  */
 metadata {
-	definition (name: "Virtual Contact Sensor", namespace: "ritchierich", author: "ritchierich") {
+	definition (name: "Virtual Contact Sensor", namespace: "mlritchie", author: "ritchierich") {
 		capability "Contact Sensor"
 		capability "Sensor"
 
