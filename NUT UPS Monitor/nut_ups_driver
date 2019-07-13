@@ -35,7 +35,6 @@ metadata {
 		capability "Battery"
 	}
 	
-	attribute "battery'", "String"
 	attribute "deviceAlarm", "String"
 	attribute "batteryRuntime", "String"
 	attribute "upsStatus", "String"
