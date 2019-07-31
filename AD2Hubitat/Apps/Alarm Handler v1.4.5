@@ -1,5 +1,5 @@
 /**
- *  Alarm Handler v1.3.1
+ *  Alarm Handler v1.4.5
  *
  *  Copyright 2018 Michael Ritchie
  *
@@ -15,41 +15,57 @@
  */
  
 definition(
-    name: "Alarm Handler v1.3.1",
+    name: "Alarm Handler v1.4.5",
     namespace: "mlritchie",
     author: "Michael Ritchie",
-    description: "Create virtual devices for each alarm zone, synchronize alarm events with the child devices, sychronizes alarm panel with Hubitat Safety Monitor",
+    description: "Create virtual devices for each alarm zone, synchronize alarm events with the child devices, sychronizes alarm panel with modes",
     category: "Convenience",
     iconUrl: "http://cdn.device-icons.smartthings.com/Home/home3-icn.png",
     iconX2Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@2x.png",
     iconX3Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@3x.png")
 
 preferences {
-	page(name: "controllerSetup")
-    page(name: "zoneSetup")
-	page(name: "alertSetup")
+	page(name: "alarmSetup", install: true, uninstall: true) {
+        section("") {
+			//input (name: "arduino", type: "enum", title: "Test", options: ["1","2","3"])
+			input(name: "brand_t", title: "Gateway Brand", type: "enum",  , options: [[1:"Liftmaster"],[2:"Chamberlain"],[3:"Craftsman"]] )
+            input "arduino", "capability.alarm", title: "Alarm Controller", required: true, multiple: false
+        }
+        section() {
+			href "zoneSetup1", title:"Individual Alarm Zone Settings"
+		}
+        section() {
+			href "alertSetup", title:"Notification Preferences"
+		}
+        section() {
+			href "integrationSetup", title:"Integrate with SmartThings?"
+		}
+        section("Sync your alarm panel with modes."){
+            input "syncModes", "bool", title: "Sync with modes?", defaultValue: false
+        }
+        section("Other Preferences"){
+            input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
+        }
+    }
+    page(name: "zoneSetup1")
+    page(name: "zoneSetup2")
+    page(name: "alertSetup")
+    page(name: "integrationSetup")
 }
-def controllerSetup() {
-    dynamicPage(name: "controllerSetup", title: "Alarm Controller and Devices", nextPage:"zoneSetup", uninstall: true) {
+
+def zoneSetup1() {
+    dynamicPage(name: "controllerSetup", title: "Alarm Controller and Devices", nextPage:"zoneSetup2", install: false) {
 		section("") {
-			input "arduino", "capability.alarm", title: "Alarm Controller", required: true, multiple: false
 			input "howMany", "number", title: "How many alarm zones do you want to setup devices for?", required: true
 		}
         section("Virtual Device Name Prefix (optional.  Example 'Alarm' for Alarm Back Door)"){
             input "namePrefix", "text", title: "Name Prefix", required: false
         }
-        section("Integrate Hubitat Alarm Controller with your SmartThings Alarm Controller?") {
-			input("syncST", "bool", title: "Sync Events with SmartThings?", defaultValue: false, required: false)					
-			input "smartThingsUrl", "text", title:"Enter the SmartThings Alarm Handler URL:", required: false
-		}
-        section("Other Preferences"){
-            input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
-        }
 	}
 }
 
-def zoneSetup() {
-   	dynamicPage(name: "zoneSetup", title: "Zone Setup", nextPage:"alertSetup", install:false) {
+def zoneSetup2() {
+   	dynamicPage(name: "zoneSetup", title: "Zone Setup", nextPage:"alarmSetup", install:false) {
     	for (int i=1;i<=settings.howMany;i++) {
         	section("Virtual Device " + i) {
                 input "zone" + i, "number", title: "Zone Number", required: true
@@ -60,13 +76,20 @@ def zoneSetup() {
     }
 }
 
+def integrationSetup() {
+    dynamicPage(name: "controllerSetup", title: "Alarm Controller and Devices", install: false) {
+        section("Integrate Hubitat Alarm Controller with your SmartThings Alarm Controller?") {
+			input("syncST", "bool", title: "Sync Events with SmartThings?", defaultValue: false, required: false)					
+			input "smartThingsUrl", "text", title:"Enter the SmartThings Alarm Handler URL:", required: false
+		}
+	}
+}
+
 def alertSetup() {
-    dynamicPage(name: "alertSetup", title: "Additional Features", install:true) {
-        section("Integrate your alarm panel with Hubitat Safety Monitor.  By enabling this feature HSM will be in sync with your alarm panel.  You can arm and disarm your panel via HSM, in the Alarm Device Handler, or directly on your alarm system keypad with everything in sync."){
-            input "syncHSM", "bool", title: "Sync with HSM?", defaultValue: false
-        }
-		section("Receive alarm alert messages via SMS message.  By enabling notifications, you will receive notifications for alarm sounding, panel power status changes (on battery, low battery, on AC), and when you try to arm your alarm and it is not in a ready state."){
+    dynamicPage(name: "alertSetup", title: "Additional Features", install:false) {
+		section("Receive alarm alert messages.  By enabling notifications, you will receive notifications for alarm sounding, panel power status changes (on battery, low battery, on AC), and when you try to arm your alarm and it is not in a ready state."){
             input "sendNotification", "bool", title: "Send notifications?", defaultValue: false
+            input "notificationDevices", "capability.notification", title: "Use Notification Devices", required: false, multiple: true
             input "phone", "phone", title: "Phone Number(s) (Phone number for SMS format +1<10 digits> separate multiple with ,)", required: false
         }
     }    
@@ -87,19 +110,17 @@ def uninstalled() {
 
 def initialize() {
     // Subscribe to the Arduino and other contacts and motions for notifications
-    if (sendNotification && phone) {
+    if (sendNotification && (notificationDevices || phone)) {
     	subscribe(arduino, "alertMsg", alarmMsgHandler)
     }
-	
-	if (syncHSM) {
+    
+    if (syncModes) {
     	subscribe(arduino, "system", alarmHandler)
-		subscribe(location, "hsmStatus", hsmHandler)
+		subscribe(location, "mode", modeHandler)
         
         // Declare/Clear variables to prevent duplicate updates
     	state.previousAlarmValue = arduino.currentValue("system")
-        // Currently location.currentState() isn't part of API, will modify once that is available
-        //state.previousHSMValue = location.currentState("hsmStatus")?.value
-		state.previousHSMValue = ""
+		state.previousModeValue = location.mode
     }
 
     for (int i = 1 ; i <= howMany; i++) {        
@@ -167,7 +188,12 @@ def virtualDeviceHandler(evt) {
 //Handle alertMsg's from the AD2Hubitat driver.  Message is set in the device and this function just sends it.
 def alarmMsgHandler(evt) {
     def msg = evt.value
-
+    
+    if (notificationDevices) {
+        logDebug "sending notification, notificationDevices: ${notificationDevices}, msg: ${msg}"
+        notificationDevices?.deviceNotification(msg)
+    }
+    
 	if (phone) {
 		logDebug "sending SMS, phone: ${phone}, msg: ${msg}"
 		sendSms(phone, msg)
@@ -178,7 +204,7 @@ def alarmMsgHandler(evt) {
     }
 }
 
-// Handle syncing the alarm panel with Hubitat Safety Monitor
+// Handle syncing the alarm panel with Hubitat modes
 def alarmHandler(evt) {
     def deviceName = evt.displayName
     def deviceValue = evt.value
@@ -186,85 +212,71 @@ def alarmHandler(evt) {
 	if (deviceValue != "" && deviceValue != null && state.previousAlarmValue != deviceValue) {
         state.previousAlarmValue = deviceValue
 		
-		def translatedState = translateState(deviceValue)
-        def shmState = state.previousHSMValue
-        logDebug "alarmHandler - deviceValue: ${deviceValue}, previousAlarmValue: ${state.previousAlarmValue}, translatedState: ${translatedState}, shmState: ${shmState}"
+		def translatedValue = translateValue(deviceValue)
+        def modeValue = state.previousModeValue
+        logDebug "alarmHandler - deviceValue: ${deviceValue}, previousAlarmValue: ${state.previousAlarmValue}, translatedValue: ${translatedValue}, modeValue: ${modeValue}"
 
-        if (translatedState != shmState) {
+        if (translatedValue != modeValue) {
             // Set previous state variables to the new values to prevent loop.  When the sendLocationEvent fires this app will launch again.
-            state.previousHSMValue = translatedState
-			def hsmArmCommand = ""
-			switch (deviceValue) {
-                case "disarmed":
-                    hsmArmCommand = "disarm"
-                    break
-                case "armingStay":
-					hsmArmCommand = "armHome"
-                    break
-				case "armedStay":
-                    hsmArmCommand = "armHome"
-                    break
-                case "armingAway":
-					hsmArmCommand = "armAway"
-                    break
-				case "armedAway":
-                    hsmArmCommand = "armAway"
-                    break
-            }
-			
-            sendLocationEvent(name: "hsmSetArm", value: hsmArmCommand)
+            state.previousModeValue = translatedValue
+            setLocationMode(translatedValue)
         }
 	}
 }
 
-// Handle syncing Hubitat Safety Monitor with the alarm panel
-def hsmHandler(evt) {
+// Handle syncing Hubitat modes with the alarm panel
+def modeHandler(evt) {
     def deviceName = evt.displayName
     def deviceValue = evt.value
 
-	if (deviceValue != "" && deviceValue != null && state.previousHSMValue != deviceValue) {
-		state.previousHSMValue = deviceValue
+	if (deviceValue != "" && deviceValue != null && state.previousModeValue != deviceValue) {
+		state.previousModeValue = deviceValue
 		
-		def translatedState = translateState(deviceValue)
+		def translatedValue = translateValue(deviceValue)
         def alarmState = state.previousAlarmValue
-        logDebug "hsmHandler - deviceValue: ${deviceValue}, previousHSMValue: ${state.previousHSMValue}, translatedState: ${translatedState}, alarmState: ${alarmState}"
+        logDebug "modeHandler - deviceValue: ${deviceValue}, previousModeValue: ${state.previousModeValue}, translatedValue: ${translatedValue}, alarmState: ${alarmState}"
         
-        if (translatedState != alarmState) {
+        if (translatedValue != alarmState) {
             // Set previous state variables to the new values to prevent loop.  When the Arduino command fires this app will launch again.			
-            state.previousAlarmValue = translatedState
+            state.previousAlarmValue = translatedValue
             switch (deviceValue) {
-                case "disarmed":
+                case "Day":
                     arduino.disarm()
                     break
-                case "armedHome":
+                case "Night":
                     arduino.armStay()
                     break
-                case "armedAway":
+                case "Away":
                     arduino.armAway()
+                    break
+                case "Cleaning":
+                    arduino.disarm()
                     break
             }
 		}
 	}
 }
 
-private translateState(currentState) {
-	switch (currentState) {
+private translateValue(currentValue) {
+	switch (currentValue) {
 		case "disarmed":
-			return "disarmed"
+			return "Day"
 		case "armingStay":
-			return "armedHome"
+			return "Night"
         case "armedStay":
-			return "armedHome"
+			return "Night"
 		case "armingAway":
-			return "armedAway"
+			return "Away"
         case "armedAway":
-			return "armedAway"
-        case "disarmed":
+			return "Away"
+        case "Day":
 			return "disarmed"
-		case "armedHome":
+		case "Night":
 			return "armedStay"
-		case "armedAway":
+		case "Away":
 			return "armedAway"
+		case "Cleaning":
+			return "disarmed"
 	}
 }
 
