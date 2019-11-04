@@ -14,7 +14,7 @@
  *
  */
 
-def version() {"v1.0.20190212"}
+def version() {"v1.0.20191104"}
 
 metadata {
 	definition (name: "Twilio Container", namespace: "mlritchie", author: "Michael Ritchie") {
