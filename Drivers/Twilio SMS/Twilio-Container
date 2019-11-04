@@ -26,6 +26,7 @@ metadata {
 preferences {
 	input("accountSID", "text", title: "Twilio Account SID:", description: "Twilio Account SID")
   	input("authToken", "text", title: "Twilio Auth Token:", description: "Twilio Auth Token")
+    input("serviceSID", "text", title: "OPTIONAL... Twilio Service SID:", description: "Twilio Service SID")
     if (getValidated()) {
 		input("fromNumber", "enum", title: "Twilio Phone Number:", description: "Twilio phone number to use.", options: getValidated("phoneList"), required: true)
     }
@@ -98,6 +99,9 @@ def getValidated(type) {
                     if (type=="phoneList") {
                         logDebug "Phone list generated"
                         phoneList = response.data.incoming_phone_numbers.phone_number
+                        if (serviceSID) {
+                            getAlphaSenders(phoneList)
+                        }
                     } else {
                         logDebug "API credentials validated"
                         validated = true
@@ -116,6 +120,36 @@ def getValidated(type) {
 	} else {
 		return validated
 	}    
+}
+
+def getAlphaSenders(phoneList) {
+	logDebug "Generating Alpha Sencer list..."
+    
+    def params = [
+    	uri: "https://" + accountSID + ":" + authToken + "@messaging.twilio.com/v1/Services/" + serviceSID + "/AlphaSenders.json?PageSize=500"
+  	]
+    
+    if ((accountSID =~ /[A-Za-z0-9]{30}/) && (authToken =~ /[A-Za-z0-9]{30}/)) {
+        try {
+        	httpGet(params){response ->
+      			if (response.status != 200) {
+        			log.error "Received HTTP error ${response.status}. Check your API Credentials!"
+                } else {
+                    logDebug "Alpha Sender list generated"
+                    def alphaSenderList = response.data.alpha_senders.alpha_sender
+                    if (alphaSenderList) {
+                        phoneList = phoneList << alphaSenderList
+                    }
+                }
+    		}
+        } catch (Exception e) {
+        	log.error "getAlphaSenders: Invalid API Credentials were probably entered. Twilio Server Returned: ${e}"
+		} 
+    } else {
+    	log.error "Account SID '${accountSID}' or Auth Token '${authToken}' is not properly formatted!"
+  	}
+	
+    return phoneList    
 }
 
 def sendNotification(toNumber, message, deviceID) {
