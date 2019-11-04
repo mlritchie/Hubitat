@@ -26,7 +26,7 @@ metadata {
 preferences {
 	input("accountSID", "text", title: "Twilio Account SID:", description: "Twilio Account SID")
   	input("authToken", "text", title: "Twilio Auth Token:", description: "Twilio Auth Token")
-    input("serviceSID", "text", title: "OPTIONAL... Twilio Service SID:", description: "Twilio Service SID")
+    input("serviceSID", "text", title: "OPTIONAL... Twilio Service SID for Alpha Senders:", description: "Twilio Service SID")
     if (getValidated()) {
 		input("fromNumber", "enum", title: "Twilio Phone Number:", description: "Twilio phone number to use.", options: getValidated("phoneList"), required: true)
     }
