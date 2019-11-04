@@ -79,6 +79,7 @@ def updatePhoneNumber() { // syncs device label with componentLabel data value
 
 def getValidated(type) {
 	def validated = false
+    def phoneList = []
 	
 	if (type == "phoneList") {
 		logDebug "Generating Twilio phone number list..."
@@ -97,8 +98,11 @@ def getValidated(type) {
         			log.error "Received HTTP error ${response.status}. Check your API Credentials!"
       			} else {
                     if (type=="phoneList") {
-                        logDebug "Phone list generated"
-                        phoneList = response.data.incoming_phone_numbers.phone_number
+                        def phoneNumbers = response.data.incoming_phone_numbers.phone_number
+                        logDebug "Phone list generated, phoneNumbers: ${phoneNumbers}"
+                        if (phoneNumbers) {
+                            phoneList = phoneNumbers
+                        }
                         if (serviceSID) {
                             getAlphaSenders(phoneList)
                         }
@@ -123,7 +127,7 @@ def getValidated(type) {
 }
 
 def getAlphaSenders(phoneList) {
-	logDebug "Generating Alpha Sencer list..."
+	logDebug "Generating Alpha Sender list..."
     
     def params = [
     	uri: "https://" + accountSID + ":" + authToken + "@messaging.twilio.com/v1/Services/" + serviceSID + "/AlphaSenders.json?PageSize=500"
@@ -132,18 +136,20 @@ def getAlphaSenders(phoneList) {
     if ((accountSID =~ /[A-Za-z0-9]{30}/) && (authToken =~ /[A-Za-z0-9]{30}/)) {
         try {
         	httpGet(params){response ->
-      			if (response.status != 200) {
+                logDebug "AlphaSenders response: ${response.status}"
+                if (response.status != 200) {
         			log.error "Received HTTP error ${response.status}. Check your API Credentials!"
                 } else {
-                    logDebug "Alpha Sender list generated"
                     def alphaSenderList = response.data.alpha_senders.alpha_sender
+                    logDebug "Alpha Sender list generated, alphaSenderList: ${alphaSenderList}"
                     if (alphaSenderList) {
+                        logDebug "phoneList: '${phoneList}', alphaSenderList: '${alphaSenderList}'"
                         phoneList = phoneList << alphaSenderList
                     }
                 }
     		}
         } catch (Exception e) {
-        	log.error "getAlphaSenders: Invalid API Credentials were probably entered. Twilio Server Returned: ${e}"
+        	log.error "getAlphaSenders: Invalid Service SID was probably entered. Twilio Server Returned: ${e}"
 		} 
     } else {
     	log.error "Account SID '${accountSID}' or Auth Token '${authToken}' is not properly formatted!"
@@ -154,7 +160,7 @@ def getAlphaSenders(phoneList) {
 
 def sendNotification(toNumber, message, deviceID) {
   	def postBody = [
-		From: "$fromNumber",
+        From: "${fromNumber}",
 		To: "${toNumber}",
    		Body: "${message}"
   	]
