@@ -130,7 +130,7 @@ def getAlphaSenders(phoneList) {
 	logDebug "Generating Alpha Sender list..."
     
     def params = [
-    	uri: "https://" + accountSID + ":" + authToken + "@messaging.twilio.com/v1/Services/" + serviceSID + "/AlphaSenders.json?PageSize=500"
+    	uri: "https://" + accountSID + ":" + authToken + "@messaging.twilio.com/v1/Services/" + serviceSID + "/AlphaSenders"
   	]
     
     if ((accountSID =~ /[A-Za-z0-9]{30}/) && (authToken =~ /[A-Za-z0-9]{30}/)) {
