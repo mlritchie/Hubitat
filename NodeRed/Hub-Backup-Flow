@@ -1,0 +1,444 @@
+[
+    {
+        "id": "76b389e9.2366c8",
+        "type": "tab",
+        "label": "Download Backup",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "dce6bb12.e778c8",
+        "type": "inject",
+        "z": "76b389e9.2366c8",
+        "name": "09:00 AM Daily",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "00 09 * * *",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 130,
+        "y": 60,
+        "wires": [
+            [
+                "3e14b01d.12c768"
+            ]
+        ]
+    },
+    {
+        "id": "16b9e27b.fd38f6",
+        "type": "http request",
+        "z": "76b389e9.2366c8",
+        "name": "Download backup",
+        "method": "GET",
+        "ret": "bin",
+        "paytoqs": false,
+        "url": "",
+        "tls": "",
+        "proxy": "",
+        "authType": "",
+        "x": 230,
+        "y": 460,
+        "wires": [
+            [
+                "900897c5.b76dd8"
+            ]
+        ]
+    },
+    {
+        "id": "c081b588.a7df2",
+        "type": "file",
+        "z": "76b389e9.2366c8",
+        "name": "Backup File",
+        "filename": "",
+        "appendNewline": false,
+        "createDir": false,
+        "overwriteFile": "true",
+        "x": 970,
+        "y": 400,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "71384b92.050494",
+        "type": "string",
+        "z": "76b389e9.2366c8",
+        "name": "",
+        "methods": [
+            {
+                "name": "strip",
+                "params": [
+                    {
+                        "type": "str",
+                        "value": "attachment; filename="
+                    }
+                ]
+            },
+            {
+                "name": "prepend",
+                "params": [
+                    {
+                        "type": "msg",
+                        "value": "path"
+                    }
+                ]
+            }
+        ],
+        "prop": "headers.content-disposition",
+        "propout": "filename",
+        "object": "msg",
+        "objectout": "msg",
+        "x": 790,
+        "y": 400,
+        "wires": [
+            [
+                "c081b588.a7df2"
+            ]
+        ]
+    },
+    {
+        "id": "ee01dc3b.61a1b8",
+        "type": "fs-ops-dir",
+        "z": "76b389e9.2366c8",
+        "name": "# of Backups",
+        "path": "path",
+        "pathType": "msg",
+        "filter": "*",
+        "filterType": "str",
+        "dir": "files",
+        "dirType": "msg",
+        "x": 550,
+        "y": 200,
+        "wires": [
+            [
+                "443e1b8f.a7f85c"
+            ]
+        ]
+    },
+    {
+        "id": "95a9eb32.3ae5c8",
+        "type": "fs-ops-delete",
+        "z": "76b389e9.2366c8",
+        "name": "Del Oldest File",
+        "path": "path",
+        "pathType": "msg",
+        "filename": "files[0]",
+        "filenameType": "msg",
+        "x": 720,
+        "y": 260,
+        "wires": [
+            [
+                "cc694d04.eb98"
+            ]
+        ]
+    },
+    {
+        "id": "443e1b8f.a7f85c",
+        "type": "switch",
+        "z": "76b389e9.2366c8",
+        "name": "30 Backup Limit",
+        "property": "files.length",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "lt",
+                "v": "30",
+                "vt": "num"
+            },
+            {
+                "t": "gte",
+                "v": "30",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 720,
+        "y": 200,
+        "wires": [
+            [
+                "cc694d04.eb98"
+            ],
+            [
+                "95a9eb32.3ae5c8"
+            ]
+        ]
+    },
+    {
+        "id": "3e14b01d.12c768",
+        "type": "function",
+        "z": "76b389e9.2366c8",
+        "name": "Init Global Vars",
+        "func": "flow.set(\"sharePath\", \"/share/Backup/\")\nflow.set(\"backupURL\", \"http://IP-ADDRESS/hub/backupDB?fileName=latest\")\n\nmsg.requestTimeout = 480000;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 140,
+        "y": 200,
+        "wires": [
+            [
+                "6f1c3992.430e5",
+                "1e4d7314.9489b5",
+                "5d8dcbe.c2190b4",
+                "d0d1c274.7e12c8",
+                "2174f29.af0430e"
+            ]
+        ]
+    },
+    {
+        "id": "6f1c3992.430e5",
+        "type": "function",
+        "z": "76b389e9.2366c8",
+        "name": "Coordinator Vars",
+        "func": "var ipAddress = \"192.168.8.10\";\nvar hubName = \"Coordinator\";\n\nmsg.path = flow.get(\"sharePath\") + hubName + \"/\";\nmsg.url = flow.get(\"backupURL\").replace(\"IP-ADDRESS\", ipAddress);\nmsg.displayName = hubName;\nmsg.hubId = hubName.toLowerCase();\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 350,
+        "y": 120,
+        "wires": [
+            [
+                "ee01dc3b.61a1b8"
+            ]
+        ]
+    },
+    {
+        "id": "2ec9c1bc.fd23ae",
+        "type": "debug",
+        "z": "76b389e9.2366c8",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 1130,
+        "y": 680,
+        "wires": []
+    },
+    {
+        "id": "1e4d7314.9489b5",
+        "type": "function",
+        "z": "76b389e9.2366c8",
+        "name": "Zwave Vars",
+        "func": "var ipAddress = \"192.168.8.11\";\nvar hubName = \"Zwave\";\n\nmsg.path = flow.get(\"sharePath\") + hubName + \"/\";\nmsg.url = flow.get(\"backupURL\").replace(\"IP-ADDRESS\", ipAddress);\nmsg.displayName = hubName;\nmsg.hubId = hubName.toLowerCase();\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 330,
+        "y": 160,
+        "wires": [
+            [
+                "ee01dc3b.61a1b8"
+            ]
+        ]
+    },
+    {
+        "id": "5d8dcbe.c2190b4",
+        "type": "function",
+        "z": "76b389e9.2366c8",
+        "name": "Zigbee Vars",
+        "func": "var ipAddress = \"192.168.8.12\";\nvar hubName = \"Zigbee\";\n\nmsg.path = flow.get(\"sharePath\") + hubName + \"/\";\nmsg.url = flow.get(\"backupURL\").replace(\"IP-ADDRESS\", ipAddress);\nmsg.displayName = hubName;\nmsg.hubId = hubName.toLowerCase();\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 330,
+        "y": 200,
+        "wires": [
+            [
+                "ee01dc3b.61a1b8"
+            ]
+        ]
+    },
+    {
+        "id": "d0d1c274.7e12c8",
+        "type": "function",
+        "z": "76b389e9.2366c8",
+        "name": "LAN Vars",
+        "func": "var ipAddress = \"192.168.8.13\";\nvar hubName = \"LAN\";\n\nmsg.path = flow.get(\"sharePath\") + hubName + \"/\";\nmsg.url = flow.get(\"backupURL\").replace(\"IP-ADDRESS\", ipAddress);\nmsg.displayName = hubName;\nmsg.hubId = hubName.toLowerCase();\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 320,
+        "y": 240,
+        "wires": [
+            [
+                "ee01dc3b.61a1b8"
+            ]
+        ]
+    },
+    {
+        "id": "2174f29.af0430e",
+        "type": "function",
+        "z": "76b389e9.2366c8",
+        "name": "Dev Vars",
+        "func": "var ipAddress = \"192.168.8.14\";\nvar hubName = \"Dev\";\n\nmsg.path = flow.get(\"sharePath\") + hubName + \"/\";\nmsg.url = flow.get(\"backupURL\").replace(\"IP-ADDRESS\", ipAddress);\nmsg.displayName = hubName;\nmsg.hubId = hubName.toLowerCase();\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 320,
+        "y": 280,
+        "wires": [
+            [
+                "ee01dc3b.61a1b8"
+            ]
+        ]
+    },
+    {
+        "id": "cc694d04.eb98",
+        "type": "change",
+        "z": "76b389e9.2366c8",
+        "name": "Add starttime",
+        "rules": [
+            {
+                "t": "set",
+                "p": "starttime",
+                "pt": "msg",
+                "to": "",
+                "tot": "date"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 950,
+        "y": 200,
+        "wires": [
+            [
+                "16b9e27b.fd38f6"
+            ]
+        ]
+    },
+    {
+        "id": "900897c5.b76dd8",
+        "type": "change",
+        "z": "76b389e9.2366c8",
+        "name": "Add endtime",
+        "rules": [
+            {
+                "t": "set",
+                "p": "endtime",
+                "pt": "msg",
+                "to": "",
+                "tot": "date"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 410,
+        "y": 460,
+        "wires": [
+            [
+                "4ea1f18d.dc4b88"
+            ]
+        ]
+    },
+    {
+        "id": "2d1cd4ab.76e26c",
+        "type": "function",
+        "z": "76b389e9.2366c8",
+        "name": "Set Insert",
+        "func": "var responseTime = msg.endtime - msg.starttime;\nresponseTime = responseTime / 1000;\n\nvar query = \"INSERT INTO response_times(hubId, displayName, `value`, `type`) VALUES(\";\nquery += \"'\" + msg.hubId + \"',\";\nquery += \"'\" + msg.displayName + \"',\";\nquery += \"'\" + responseTime + \"',\";\nquery += \"'backup'\";\nquery += \")\";\n\nmsg.topic = query;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 800,
+        "y": 460,
+        "wires": [
+            [
+                "109b1b59.64d405"
+            ]
+        ]
+    },
+    {
+        "id": "109b1b59.64d405",
+        "type": "mysql",
+        "z": "76b389e9.2366c8",
+        "mydb": "3e6126f3.59a962",
+        "name": "Logging DB",
+        "x": 970,
+        "y": 460,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "4ea1f18d.dc4b88",
+        "type": "switch",
+        "z": "76b389e9.2366c8",
+        "name": "Check Status Code",
+        "property": "statusCode",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "200",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "ESOCKETTIMEDOUT",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 590,
+        "y": 460,
+        "wires": [
+            [
+                "71384b92.050494",
+                "2d1cd4ab.76e26c"
+            ],
+            [
+                "7f14889d.e577f8",
+                "2d1cd4ab.76e26c"
+            ]
+        ]
+    },
+    {
+        "id": "7f14889d.e577f8",
+        "type": "function",
+        "z": "76b389e9.2366c8",
+        "name": "Set Message",
+        "func": "msg.topic = \"Backup Watchdog\";\nmsg.payload = msg.displayName + \" did not backup due to timeout.\";\nmsg.device = \"iPhone,iPad\";\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 810,
+        "y": 520,
+        "wires": [
+            [
+                "6d4b2a71.ced054"
+            ]
+        ]
+    },
+    {
+        "id": "6d4b2a71.ced054",
+        "type": "pushover api",
+        "z": "76b389e9.2366c8",
+        "keys": "aed1d50a.ee4438",
+        "title": "",
+        "name": "",
+        "x": 960,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "3e6126f3.59a962",
+        "type": "MySQLdatabase",
+        "z": "",
+        "host": "192.168.8.5",
+        "port": "3306",
+        "db": "hubitat",
+        "tz": "UTC"
+    },
+    {
+        "id": "aed1d50a.ee4438",
+        "type": "pushover-keys",
+        "z": "",
+        "name": ""
+    }
+]
