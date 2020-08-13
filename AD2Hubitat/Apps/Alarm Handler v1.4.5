@@ -27,8 +27,6 @@ definition(
 preferences {
 	page(name: "alarmSetup", install: true, uninstall: true) {
         section("") {
-			//input (name: "arduino", type: "enum", title: "Test", options: ["1","2","3"])
-			input(name: "brand_t", title: "Gateway Brand", type: "enum",  , options: [[1:"Liftmaster"],[2:"Chamberlain"],[3:"Craftsman"]] )
             input "arduino", "capability.alarm", title: "Alarm Controller", required: true, multiple: false
         }
         section() {
