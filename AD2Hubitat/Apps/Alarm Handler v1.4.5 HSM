@@ -1,0 +1,344 @@
+/**
+ *  Alarm Handler v1.4.5
+ *
+ *  Copyright 2018 Michael Ritchie
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ */
+ 
+definition(
+    name: "Alarm Handler v1.4.5 HSM",
+    namespace: "mlritchie",
+    author: "Michael Ritchie",
+    description: "Create virtual devices for each alarm zone, synchronize alarm events with the child devices, sychronizes alarm panel with HSM",
+    category: "Convenience",
+    iconUrl: "http://cdn.device-icons.smartthings.com/Home/home3-icn.png",
+    iconX2Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@2x.png",
+    iconX3Url: "http://cdn.device-icons.smartthings.com/Home/home3-icn@3x.png")
+
+preferences {
+	page(name: "alarmSetup", install: true, uninstall: true) {
+        section("") {
+            input "arduino", "capability.alarm", title: "Alarm Controller", required: true, multiple: false
+        }
+        section() {
+			href "zoneSetup1", title:"Individual Alarm Zone Settings"
+		}
+        section() {
+			href "alertSetup", title:"Notification Preferences"
+		}
+        section() {
+			href "integrationSetup", title:"Integrate with SmartThings?"
+		}
+        section("Integrate your alarm panel with Hubitat Safety Monitor.  By enabling this feature HSM will be in sync with your alarm panel.  You can arm and disarm your panel via HSM, in the Alarm Device Handler, or directly on your alarm system keypad with everything in sync."){
+            input "syncHSM", "bool", title: "Sync with HSM?", defaultValue: false
+        }
+        section("Other Preferences"){
+            input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
+        }
+    }
+    page(name: "zoneSetup1")
+    page(name: "zoneSetup2")
+    page(name: "alertSetup")
+    page(name: "integrationSetup")
+}
+
+def zoneSetup1() {
+    dynamicPage(name: "controllerSetup", title: "Alarm Controller and Devices", nextPage:"zoneSetup2", install: false) {
+		section("") {
+			input "howMany", "number", title: "How many alarm zones do you want to setup devices for?", required: true
+		}
+        section("Virtual Device Name Prefix (optional.  Example 'Alarm' for Alarm Back Door)"){
+            input "namePrefix", "text", title: "Name Prefix", required: false
+        }
+	}
+}
+
+def zoneSetup2() {
+   	dynamicPage(name: "zoneSetup", title: "Zone Setup", nextPage:"alarmSetup", install:false) {
+    	for (int i=1;i<=settings.howMany;i++) {
+        	section("Virtual Device " + i) {
+                input "zone" + i, "number", title: "Zone Number", required: true
+                input "name" + i, "string", title: "Zone Name", required: true
+                input "typezone" + i, "enum", title: "Zone Type", options:["Virtual Contact Sensor","Virtual Motion Sensor","Virtual Smoke Alarm"], required: true
+            }
+        }    
+    }
+}
+
+def integrationSetup() {
+    dynamicPage(name: "controllerSetup", title: "Alarm Controller and Devices", install: false) {
+        section("Integrate Hubitat Alarm Controller with your SmartThings Alarm Controller?") {
+			input("syncST", "bool", title: "Sync Events with SmartThings?", defaultValue: false, required: false)					
+			input "smartThingsUrl", "text", title:"Enter the SmartThings Alarm Handler URL:", required: false
+		}
+	}
+}
+
+def alertSetup() {
+    dynamicPage(name: "alertSetup", title: "Additional Features", install:false) {
+        section("Receive alarm alert messages.  By enabling notifications, you will receive notifications for alarm sounding, panel power status changes (on battery, low battery, on AC), and when you try to arm your alarm and it is not in a ready state."){
+            input "sendNotification", "bool", title: "Send notifications?", defaultValue: false
+            input "notificationDevices", "capability.notification", title: "Use Notification Devices", required: false, multiple: true
+            input "phone", "phone", title: "Phone Number(s) (Phone number for SMS format +1<10 digits> separate multiple with ,)", required: false
+        }
+    }    
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	unsubscribe()
+	initialize()
+}
+
+def uninstalled() {
+	removeChildDevices(getChildDevices())
+}
+
+def initialize() {
+    // Subscribe to the Arduino and other contacts and motions for notifications
+    if (sendNotification && (notificationDevices || phone)) {
+    	subscribe(arduino, "alertMsg", alarmMsgHandler)
+    }
+    
+    if (syncHSM) {
+    	subscribe(arduino, "system", alarmHandler)
+		subscribe(location, "hsmStatus", hsmHandler)
+        
+        // Declare/Clear variables to prevent duplicate updates
+    	state.previousAlarmValue = arduino.currentValue("system")
+		state.previousHSMValue = ""
+    }
+
+    for (int i = 1 ; i <= howMany; i++) {        
+        def zoneNumber = "zone" + settings["zone$i"].toString()
+        def zoneName = settings["name$i"]
+        if (namePrefix) {
+        	zoneName = namePrefix + " " + zoneName
+        }
+        def zoneType = settings["typezone$i"]
+        def deviceID = "Alarm_" + zoneNumber
+        logDebug "checking device: zoneNumber: ${zoneNumber}, name: ${zoneName}, type: ${zoneType}, deviceID: ${deviceID}"
+    	
+        def myDevice = getChildDevice(deviceID)
+        if (!myDevice) {
+            logDebug("creating device: ${zoneName} deviceID: ${deviceID}")
+            def deviceNameSpace = (zoneType == "Virtual Smoke Alarm") ? "mlritchie" : "hubitat"
+            def childDevice = addChildDevice(deviceNameSpace, zoneType, deviceID, null, [name: "${zoneName}", label: "${zoneName}"])
+            logDebug("created device: ${deviceID}")
+        } else {        
+            myDevice.name = zoneName
+            myDevice.label = zoneName
+        }
+
+        if (zoneType == "Virtual Contact Sensor") {
+        	logDebug("Subscribing to ${arduino}, ${zoneNumber}, contactHandler")
+            subscribe(arduino, zoneNumber, virtualDeviceHandler)
+        } else if (zoneType == "Virtual Motion Sensor") {
+        	logDebug("Subscribing to ${arduino}, ${zoneNumber}, motionHandler")
+            subscribe(arduino, zoneNumber, virtualDeviceHandler)
+        } else if (zoneType == "Virtual Smoke Alarm") {
+        	logDebug("Subscribing to ${arduino}, ${zoneNumber}, motionHandler")
+            subscribe(arduino, zoneNumber, virtualDeviceHandler)
+        }
+    }
+}
+
+def virtualDeviceHandler(evt) {
+    def deviceName = evt.name
+    def deviceValue = evt.value
+    def deviceID = "Alarm_" + deviceName
+    logDebug "deviceName: ${deviceName}, deviceValue: ${deviceValue}, deviceID: '${deviceID}'"
+    
+    def virtualDevice = getChildDevice(deviceID)
+    if (virtualDevice) {
+        def virtualDeviceType = virtualDevice.typeName
+        switch (virtualDeviceType) {
+            case "Virtual Contact Sensor":
+                virtualDevice.sendEvent(name: "contact", value: deviceValue == "active" ? "open" : "closed")
+                break
+            case "Virtual Motion Sensor":
+                virtualDevice.sendEvent(name: "motion", value: deviceValue)
+                break
+            case "Virtual Smoke Alarm":
+                virtualDevice.sendEvent(name: "smoke", value: deviceValue == "active" ? "smoke" : "clear")
+                break
+        }
+        if (syncST) {
+        	syncEventST(evt)
+        }
+    } else {
+        logDebug "Could not find child device '${deviceID}'"
+    }
+}
+
+//Handle alertMsg's from the AD2Hubitat driver.  Message is set in the device and this function just sends it.
+def alarmMsgHandler(evt) {
+    def msg = evt.value
+    
+    if (notificationDevices) {
+        logDebug "sending notification, notificationDevices: ${notificationDevices}, msg: ${msg}"
+        notificationDevices?.deviceNotification(msg)
+    }
+    
+	if (phone) {
+		logDebug "sending SMS, phone: ${phone}, msg: ${msg}"
+		sendSms(phone, msg)
+	}
+    
+    if (syncST) {
+        syncEventST(evt)
+    }
+}
+
+// Handle syncing the alarm panel with Hubitat Safety Monitor
+def alarmHandler(evt) {
+    def deviceName = evt.displayName
+    def deviceValue = evt.value
+    
+	if (deviceValue != "" && deviceValue != null && state.previousAlarmValue != deviceValue) {
+        state.previousAlarmValue = deviceValue
+		
+		def translatedValue = translateValue(deviceValue)
+        def shmState = state.previousHSMValue
+        logDebug "alarmHandler - deviceValue: ${deviceValue}, previousAlarmValue: ${state.previousAlarmValue}, translatedValue: ${translatedValue}, shmState: ${shmState}"
+
+        if (translatedValue != shmState) {
+            // Set previous state variables to the new values to prevent loop.  When the sendLocationEvent fires this app will launch again.
+            state.previousHSMValue = translatedState
+			def hsmArmCommand = ""
+			switch (deviceValue) {
+                case "disarmed":
+                    hsmArmCommand = "disarm"
+                    break
+                case "armingStay":
+					hsmArmCommand = "armHome"
+                    break
+				case "armedStay":
+                    hsmArmCommand = "armHome"
+                    break
+                case "armingAway":
+					hsmArmCommand = "armAway"
+                    break
+				case "armedAway":
+                    hsmArmCommand = "armAway"
+                    break
+            }
+			
+            sendLocationEvent(name: "hsmSetArm", value: hsmArmCommand)
+        }
+	}
+}
+
+// Handle syncing Hubitat Safety Monitor with the alarm panel
+def hsmHandler(evt) {
+    def deviceName = evt.displayName
+    def deviceValue = evt.value
+
+	if (deviceValue != "" && deviceValue != null && state.previousHSMValue != deviceValue) {
+		state.previousHSMValue = deviceValue
+		
+		def translatedState = translateState(deviceValue)
+        def alarmState = state.previousAlarmValue
+        logDebug "hsmHandler - deviceValue: ${deviceValue}, previousHSMValue: ${state.previousHSMValue}, translatedState: ${translatedState}, alarmState: ${alarmState}"
+        
+        if (translatedState != alarmState) {
+            // Set previous state variables to the new values to prevent loop.  When the Arduino command fires this app will launch again.			
+            state.previousAlarmValue = translatedState
+            switch (deviceValue) {
+                case "disarmed":
+                    arduino.disarm()
+                    break
+                case "armedHome":
+                    arduino.armStay()
+                    break
+                case "armedAway":
+                    arduino.armAway()
+                    break
+            }
+		}
+	}
+}
+
+private translateState(currentState) {
+	switch (currentState) {
+		case "disarmed":
+			return "disarmed"
+		case "armingStay":
+			return "armedHome"
+        case "armedStay":
+			return "armedHome"
+		case "armingAway":
+			return "armedAway"
+        case "armedAway":
+			return "armedAway"
+        case "disarmed":
+			return "disarmed"
+		case "armedHome":
+			return "armedStay"
+		case "armedAway":
+			return "armedAway"
+	}
+}
+
+private removeChildDevices(delete) {
+	delete.each {deleteChildDevice(it.deviceNetworkId)}
+}
+
+private logDebug(msg) {
+	if (isDebugEnabled) {
+		log.debug "$msg"
+	}
+}
+
+def syncEventST(evt) {
+	logDebug "syncEventST: ${evt.device?.displayName} ${evt.name} ${evt.value}"
+			
+	def uri = smartThingsUri
+    def path = "${smartThingsUrl?.replace(smartThingsUri, "")}/event/${evt.name}/${evt.value}"
+	
+	if (uri) {
+		def params = [
+			uri: "${uri}",
+			path: "${path}"
+		]
+        
+		def msg = "Pushing ${evt.name} ${evt.value} to ${evt.device?.displayName}(${evt.device?.deviceNetworkId})"
+		try {
+			httpGet(params) { resp ->
+				logDebug "${msg} Response: ${resp?.status}"
+			}
+		} catch (e) {
+			log.error "${msg} Error: $e"
+		}
+	}
+	else {
+		log.warn "${smartThingsUrl} is not a valid SmartThings Url."
+	}
+}
+
+private getSmartThingsUri() {
+	return urlRemoveAfterAtText(smartThingsUrl, "/api/token/")
+}
+
+private urlRemoveAfterAtText(url, text) {
+	def i = url?.indexOf("$text")
+    if (i && i > 1) {
+        def removed = url.substring(i)
+        return url.replace("$removed", "")
+    }
+    else {
+        return url
+    }
+}
