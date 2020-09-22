@@ -1,5 +1,5 @@
 /**
- *  Alarm Handler v1.4.5
+ *  Alarm Handler v1.4.6
  *
  *  Copyright 2018 Michael Ritchie
  *
@@ -35,9 +35,6 @@ preferences {
         section() {
 			href "alertSetup", title:"Notification Preferences"
 		}
-        section() {
-			href "integrationSetup", title:"Integrate with SmartThings?"
-		}
         section("Integrate your alarm panel with Hubitat Safety Monitor.  By enabling this feature HSM will be in sync with your alarm panel.  You can arm and disarm your panel via HSM, in the Alarm Device Handler, or directly on your alarm system keypad with everything in sync."){
             input "syncHSM", "bool", title: "Sync with HSM?", defaultValue: false
         }
@@ -48,7 +45,6 @@ preferences {
     page(name: "zoneSetup1")
     page(name: "zoneSetup2")
     page(name: "alertSetup")
-    page(name: "integrationSetup")
 }
 
 def zoneSetup1() {
@@ -72,15 +68,6 @@ def zoneSetup2() {
             }
         }    
     }
-}
-
-def integrationSetup() {
-    dynamicPage(name: "controllerSetup", title: "Alarm Controller and Devices", install: false) {
-        section("Integrate Hubitat Alarm Controller with your SmartThings Alarm Controller?") {
-			input("syncST", "bool", title: "Sync Events with SmartThings?", defaultValue: false, required: false)					
-			input "smartThingsUrl", "text", title:"Enter the SmartThings Alarm Handler URL:", required: false
-		}
-	}
 }
 
 def alertSetup() {
@@ -175,9 +162,6 @@ def virtualDeviceHandler(evt) {
                 virtualDevice.sendEvent(name: "smoke", value: deviceValue == "active" ? "smoke" : "clear")
                 break
         }
-        if (syncST) {
-        	syncEventST(evt)
-        }
     } else {
         logDebug "Could not find child device '${deviceID}'"
     }
@@ -196,10 +180,6 @@ def alarmMsgHandler(evt) {
 		logDebug "sending SMS, phone: ${phone}, msg: ${msg}"
 		sendSms(phone, msg)
 	}
-    
-    if (syncST) {
-        syncEventST(evt)
-    }
 }
 
 // Handle syncing the alarm panel with Hubitat Safety Monitor
@@ -300,45 +280,4 @@ private logDebug(msg) {
 	if (isDebugEnabled) {
 		log.debug "$msg"
 	}
-}
-
-def syncEventST(evt) {
-	logDebug "syncEventST: ${evt.device?.displayName} ${evt.name} ${evt.value}"
-			
-	def uri = smartThingsUri
-    def path = "${smartThingsUrl?.replace(smartThingsUri, "")}/event/${evt.name}/${evt.value}"
-	
-	if (uri) {
-		def params = [
-			uri: "${uri}",
-			path: "${path}"
-		]
-        
-		def msg = "Pushing ${evt.name} ${evt.value} to ${evt.device?.displayName}(${evt.device?.deviceNetworkId})"
-		try {
-			httpGet(params) { resp ->
-				logDebug "${msg} Response: ${resp?.status}"
-			}
-		} catch (e) {
-			log.error "${msg} Error: $e"
-		}
-	}
-	else {
-		log.warn "${smartThingsUrl} is not a valid SmartThings Url."
-	}
-}
-
-private getSmartThingsUri() {
-	return urlRemoveAfterAtText(smartThingsUrl, "/api/token/")
-}
-
-private urlRemoveAfterAtText(url, text) {
-	def i = url?.indexOf("$text")
-    if (i && i > 1) {
-        def removed = url.substring(i)
-        return url.replace("$removed", "")
-    }
-    else {
-        return url
-    }
 }
