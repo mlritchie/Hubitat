@@ -15,7 +15,7 @@
  */
  
 definition(
-    name: "Alarm Handler v1.4.5 HSM",
+    name: "Alarm Handler v1.4.6 HSM",
     namespace: "mlritchie",
     author: "Michael Ritchie",
     description: "Create virtual devices for each alarm zone, synchronize alarm events with the child devices, sychronizes alarm panel with HSM",
