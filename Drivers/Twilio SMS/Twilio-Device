@@ -1,10 +1,5 @@
 /**
-*   
-*	File: Twilio_Notifications.groovy
-*	Platform: Hubitat
-*   Modification History:
-*       Date       Who            		What
-*		2018-05-03 Michael Ritchie  	Initial Release
+*	Twilio Device
 *
 *  Copyright 2018 Michael Ritchie
 *
@@ -19,11 +14,12 @@
 *
 *
 */
-def version() {"v1.0.20190212"}
+def version() {"v1.0.20201107"}
 
 metadata {
   	definition (name: "Twilio Device", namespace: "mlritchie", author: "Michael Ritchie") {
     	capability "Notification"
+        capability "SpeechSynthesis"
   	}
 	
 	attribute "lastMessage", "string"
@@ -47,4 +43,8 @@ def initialize() {
 
 def deviceNotification(message) {
   	parent.sendNotification(toNumber, message, device.deviceNetworkId)
+}
+
+def speak(message) {
+    parent.makeCall(toNumber, message, device.deviceNetworkId)
 }
