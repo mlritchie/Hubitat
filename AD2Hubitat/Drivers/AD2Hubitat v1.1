@@ -1,5 +1,5 @@
 /**
- *  AD2Hubitat Home Alarm Driver v1.0
+ *  AD2Hubitat Home Alarm Driver v1.1
  * 
  *  Adds your Honeywell/Ademco home alarm to your Hubitat Elevation Hub
  *  Honeywell/Ademco alarms are usually installed by ADT and other companies.  Check your alarm panel to verify
@@ -36,6 +36,7 @@ metadata {
         capability "Switch"  // <on> will arm alarm in "stay" mode; same as armStay
         capability "Lock"  // <lock> will arm alarm in "away" mode; same as armAway
         capability "Alarm" // enables <both> or <siren> to  immediately alarm the system
+        capability "PowerSource"
 
         command "disarm"
         command "armStay"
@@ -46,11 +47,9 @@ metadata {
 
         attribute "system", "string" //disarmed, armedAway, armedStay, alarm, armingAway, armingStay
         attribute "chime", "string" //chimeOn, chimeOff, sendingChime
-        attribute "powerState", "string" //On AC Power, On Battery: Fully Charged, On Battery: Low Charge
         attribute "msg", "string"
         attribute "alertMsg", "string"
-        attribute "timeMsg", "string"
-        
+                
 /******************************************************************************************************************************************
 BEGIN PERSONALIZED CODE SECTION
 
@@ -100,6 +99,7 @@ END OF PERSONALIZED CODE SECTION
             description: "Code entered here takes priority.", defaultValue: "", required: false, displayDuringSetup: true)
         input("armedInstant", "bool", title: "Use Armed Instant When Arming Stay?", defaultValue: false, required: false)
         input("armedStayMotion", "bool", title: "Log events for motions while in Armed Stay?", defaultValue: false, required: false)
+        input("eventCatchAll", "bool", title: "Alarm panel may send erroneous messages by default these are ignored, however enable this preference if you wish to view them.", defaultValue: false, required: false)
         input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
     }
 }
@@ -130,17 +130,17 @@ def parse(String description) {
 		def activeZone = msgSplit[3].trim()
         def inactiveList = msgSplit[4].trim()
         def keypadMsg = msgSplit[5].trim()
-
+        
         if (powerStatus != "" && powerStatus != null) {
-            if (powerStatus == "AC") {
+            if (powerStatus == "AC" || powerStatus == "MA") {
                 result << createEvent(name: "alertMsg", value: "Alarm on AC Power")
-                result << createEvent(name: "powerState", value: "On AC Power")
+                result << createEvent(name: "powerSource", value: "mains", descriptionText: "Power source is mains")
             } else if (powerStatus == "BN") {
                 result << createEvent(name: "alertMsg", value: "Alarm on Battery Power: Fully Charged")
-                result << createEvent(name: "powerState", value: "On Battery: Fully Charged")
+                result << createEvent(name: "powerSource", value: "battery", descriptionText: "Power source is battery, fully charged")
             } else if (powerStatus == "BL") {
                 result << createEvent(name: "alertMsg", value: "Alarm on Battery Power: Low Charge")
-                result << createEvent(name: "powerState", value: "On Battery: Low Charge")
+                result << createEvent(name: "powerSource", value: "battery", descriptionText: "Power source is battery, low charge", displayed: true, isStateChange: true, isPhysical: true)
             }
             logDebug "powerStatus: ${powerStatus}"
         }
@@ -163,11 +163,6 @@ def parse(String description) {
                 logDebug "alertMsg: ${alarmMsg}"
             }
             result << createEvent(name: "system", value: "${alarmStatus}", displayed: true, isStateChange: true, isPhysical: true)
-            
-            def timeMsg = setTimeMsg(alarmStatus)
-            if (timeMsg != "") {
-            	result << createEvent(name: "timeMsg", value: timeMsg, displayed: false)
-            }
             logDebug "alarmStatus: ${alarmStatus}"
         }
         
@@ -216,8 +211,13 @@ def parse(String description) {
             }
             logDebug "keypadMsg: ${keypadMsg}"
         }
-    } else {
-		result << createEvent(name: "msg", value: rawMsg, displayed: false)
+    } else if (eventCatchAll) {
+        logDebug "catchall ${rawMsg}"
+        try {
+            result << createEvent(name: "msg", value: rawMsg, descriptionText: "rawMsg is '${rawMsg}'", displayed: false)
+        } catch (Exception e) {
+            log.debug "eventCatchAll hit exception ${e} on ${rawMsg}}"
+	    }
     }
     return result
 }
@@ -245,33 +245,6 @@ def fromHexString(String hex) {
     return str.toString();
 }
 
-def setTimeMsg(mode) {
-    if (mode.startsWith("armed")) {
-    	return ""
-    }
-    
-    if (mode.indexOf("arming") > -1) {
-    	mode = mode.replace("arming", "")
-    } else {
-    	mode = "Disarmed"
-    }
-    
-    def timeMsg = device.currentValue("timeMsg").toString()
-    def dateFormat = new java.text.SimpleDateFormat("MM/dd hh:mm a")
-    dateFormat.setTimeZone(location.timeZone)
-
-	if (timeMsg == "" || timeMsg == "null" || timeMsg == null) {
-        timeMsg = "${mode}: " + dateFormat.format(new Date()).toString()
-    } else if (timeMsg.toString().indexOf("\n") == -1 ){
-        timeMsg = timeMsg + "\n" + "${mode}: " + dateFormat.format(new Date()).toString()
-    } else if (timeMsg.toString().indexOf("\n") > -1 ){
-        def timeMsgSplit = timeMsg.toString().split("\n")
-        timeMsg = timeMsgSplit[1] + "\n" + "${mode}: " + dateFormat.format(new Date()).toString()
-    }
-    
-    return timeMsg
-}
-
 private logDebug(msg) {
 	if (isDebugEnabled) {
 		log.debug "$msg"
@@ -296,14 +269,12 @@ def unlock() {
 }
 
 def armAway() {
-    setTimeMsg("Arm Away")
     //0:msgType, 1:msgSecurityCode, 2:msgCmd
     def securityCodeVal = (securityCode) ? securityCode : ""
     sendThingShield("CODE|"+ securityCodeVal + "|2")
 }
 
 def disarm() {
-	setTimeMsg("Disarm")
     sendEvent(name: "system", value: "disarmed", displayed: true, isStateChange: true, isPhysical: true)
     //0:msgType, 1:msgSecurityCode, 2:msgCmd
     def securityCodeVal = (securityCode) ? securityCode : ""
@@ -311,7 +282,6 @@ def disarm() {
 }
 
 def armStay() {
-    setTimeMsg("Arm Stay")
     //0:msgType, 1:msgSecurityCode, 2:msgCmd
     def securityCodeVal = (securityCode) ? securityCode : ""
     def alarmCode = "|3"
