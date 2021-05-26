@@ -1,0 +1,13 @@
+{
+   "author": "ritchierich",
+   "gitHubUrl": "https://github.com/mlritchie",
+   "packages": [
+      {
+         "name": "Google Calendar Search",
+         "category": "Integrations",
+         "location": "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/packageManifest.json",
+         "description": "Google Calendar Search integrates Hubitat Elevation with a Google Calendar to toggle a virtual switch based on a calendar event.",
+         "tags": ["Lights & Switches", "LAN", "Notifications"]
+      }
+   ]
+}
