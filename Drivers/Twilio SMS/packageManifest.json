@@ -1,0 +1,24 @@
+{
+  "packageName": "Twilio SMS and Voice Notifications",
+  "author": "ritchierich",
+  "version": "1.0",
+  "minimumHEVersion": "1.0",
+  "dateReleased": "2021-10-28",
+  "apps": [],
+  "drivers": [
+    {
+      "id": "5cdfd43b-3a25-4f9c-a8e2-42cb81d07f57",
+      "name": "Twilio Container",
+      "namespace": "mlritchie",
+      "location": "https://raw.githubusercontent.com/mlritchie/Hubitat/master/Drivers/Twilio%20SMS/Twilio-Container",
+      "required": true
+    },
+    {
+      "id": "2ae0758e-2be3-42c1-b85c-d7f69442c63f",
+      "name": "Twilio Device",
+      "namespace": "mlritchie",
+      "location": "https://raw.githubusercontent.com/mlritchie/Hubitat/master/Drivers/Twilio%20SMS/Twilio-Device",
+      "required": false
+    }
+  ]
+}
