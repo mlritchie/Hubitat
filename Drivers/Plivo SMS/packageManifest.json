@@ -1,0 +1,24 @@
+{
+  "packageName": "Plivo SMS and Voice Notifications",
+  "author": "ritchierich",
+  "version": "1.0",
+  "minimumHEVersion": "1.0",
+  "dateReleased": "2021-10-28",
+  "apps": [],
+  "drivers": [
+    {
+      "id": "90f9ce29-26f2-483b-9ac9-3f042ec31008",
+      "name": "Plivo Container",
+      "namespace": "mlritchie",
+      "location": "https://raw.githubusercontent.com/mlritchie/Hubitat/master/Drivers/Plivo%20SMS/Plivo-Container.groovy",
+      "required": true
+    },
+    {
+      "id": "eeb66209-1b8a-47b4-b009-23614eee475d",
+      "name": "Plivo Device",
+      "namespace": "mlritchie",
+      "location": "https://raw.githubusercontent.com/mlritchie/Hubitat/master/Drivers/Plivo%20SMS/Plivo-Device.groovy",
+      "required": false
+    }
+  ]
+}
