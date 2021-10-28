@@ -14,7 +14,7 @@
  *
  */
 
-def version() {"v1.0.20201107"}
+def version() {"v1.0.20211028"}
 
 metadata {
 	definition (name: "Twilio Container", namespace: "mlritchie", author: "Michael Ritchie") {
@@ -43,7 +43,7 @@ def createDevice(deviceLabel, devicePhoneNumber){
     	state.vsIndex = state.vsIndex + 1	//increment even on invalid device type
 		def deviceID = deviceLabel.toString().trim().toLowerCase().replace(" ", "_")
 		logDebug "Attempting to create Virtual Device: Label: ${deviceLabel}, Phone Number: ${devicePhoneNumber}"
-		childDevice = addChildDevice("mlritchie", "Twilio Device", "${deviceID}-${state.vsIndex}", [label: "${deviceLabel}", isComponent: true])
+		childDevice = addChildDevice("mlritchie", "Twilio Device", "${deviceID}-${state.vsIndex}", [label: "${deviceLabel}", isComponent: false])
     	logDebug "createDevice Success"
 		childDevice.updateSetting("toNumber",[value:"${devicePhoneNumber}",type:"text"])
 		logDebug "toNumber Update Success"
@@ -66,6 +66,10 @@ def updated() {
 def initialize() {
 	logDebug "Initializing Virtual Container"
 	updateSize()
+}
+
+def uninstalled() {
+    
 }
 
 def updateSize() {
@@ -125,75 +129,92 @@ def getValidated(type) {
 }
 
 def sendNotification(toNumber, message, deviceID) {
-  	def postBody = [
-        From: "${fromNumber}",
-		To: "${toNumber}",
-   		Body: "${message}"
-  	]
+    def toNumberList = toNumber.toString().split(",");     
+    for (int i = 0; i < toNumberList.size(); i++) {
+        toNumber = toNumberList[i].trim()
+        if (!toNumber) continue
 
-  	def params = [
-		uri: "https://" + accountSID + ":" + authToken + "@api.twilio.com/2010-04-01/Accounts/" + accountSID + "/Messages.json",
-    	contentType: "application/x-www-form-urlencoded",
-        body: postBody
-  	]
+        def postBody = [
+            From: "$fromNumber",
+            To: "${toNumber}",
+            Body: "${message}"
+        ]
 
-    if ((accountSID =~ /[A-Za-z0-9]{30}/) && (authToken =~ /[A-Za-z0-9]{30}/)) {
-        try {
-            httpPost(params){response ->
-                if (response.status != 201) {
-                    log.error "Received HTTP error ${response.status}. Check your API Credentials!"
-                } else {
-                    def childDevice = getChildDevice(deviceID)
-					if (childDevice) {
-						childDevice.sendEvent(name:"message", value: "${message}", displayed: false)
-					} else {
-						log.error "Could not find child device: ${deviceID}"
-					}
-                    logDebug "Message Received by Twilio: ${message}"
+        def params = [
+            uri: "https://" + accountSID + ":" + authToken + "@api.twilio.com/2010-04-01/Accounts/" + accountSID + "/Messages.json",
+            contentType: "application/x-www-form-urlencoded",
+            body: postBody
+        ]
+
+        if ((accountSID =~ /[A-Za-z0-9]{30}/) && (authToken =~ /[A-Za-z0-9]{30}/)) {
+            try {
+                httpPost(params){response ->
+                    if (response.status != 201) {
+                        log.error "Received HTTP error ${response.status}. Check your API Credentials!"
+                    } else {
+                        def childDevice = getChildDevice(deviceID)
+                        if (childDevice) {
+                            childDevice.sendEvent(name:"message", value: "${message}", displayed: false)
+                        } else {
+                            log.error "Could not find child device: ${deviceID}"
+                        }
+                        logDebug "Message Received by Twilio: ${message}"
+                    }
                 }
+            } catch (Exception e) {
+                log.error "deviceNotification: Invalid API Credentials were probably entered. Twilio Server Returned: ${e}"
             }
-        } catch (Exception e) {
-        	log.error "deviceNotification: Invalid API Credentials were probably entered. Twilio Server Returned: ${e}"
-		}
-  	} else {
-    	log.error "Account SID '${accountSID}' or Auth Token '${authToken}' is not properly formatted!"
-  	}
+        } else {
+            log.error "Account SID '${accountSID}' or Auth Token '${authToken}' is not properly formatted!"
+        }
+    }
 }
 
 def makeCall(toNumber, message, deviceID) {
-  	def postBody = [
-        From: "${fromNumber}",
-		To: "${toNumber}",
-        Url: "${TwiMLBinURL}?VoiceMessage=" + URLEncoder.encode(message)
-  	]
+    if (settings.TwiMLBinURL == null) {
+        log.warn "The TwiML Bin URL must be set in order to make calls."
+        return
+    }
     
-  	def params = [
-		uri: "https://" + accountSID + ":" + authToken + "@api.twilio.com/2010-04-01/Accounts/" + accountSID + "/Calls.json",
-    	contentType: "application/x-www-form-urlencoded",
-        body: postBody
-  	]
-    
-    if ((accountSID =~ /[A-Za-z0-9]{30}/) && (authToken =~ /[A-Za-z0-9]{30}/)) {
-        try {
-            httpPost(params){response ->
-                if (response.status != 201) {
-                    log.error "Received HTTP error ${response.status}. Check your API Credentials!"
-                } else {
-                    def childDevice = getChildDevice(deviceID)
-					if (childDevice) {
-						childDevice.sendEvent(name:"message", value: "${message}", displayed: false)
-					} else {
-						log.error "Could not find child device: ${deviceID}"
-					}
-                    logDebug "Message Received by Twilio: ${message}"
+    def toNumberList = toNumber.toString().split(",");     
+    for (int i = 0; i < toNumberList.size(); i++) {
+        toNumber = toNumberList[i].trim()
+        if (!toNumber) continue
+
+        def postBody = [
+            From: "${fromNumber}",
+            To: "${toNumber}",
+            Url: "${TwiMLBinURL}?VoiceMessage=" + URLEncoder.encode(message)
+        ]
+
+        def params = [
+            uri: "https://" + accountSID + ":" + authToken + "@api.twilio.com/2010-04-01/Accounts/" + accountSID + "/Calls.json",
+            contentType: "application/x-www-form-urlencoded",
+            body: postBody
+        ]
+
+        if ((accountSID =~ /[A-Za-z0-9]{30}/) && (authToken =~ /[A-Za-z0-9]{30}/)) {
+            try {
+                httpPost(params){response ->
+                    if (response.status != 201) {
+                        log.error "Received HTTP error ${response.status}. Check your API Credentials!"
+                    } else {
+                        def childDevice = getChildDevice(deviceID)
+                        if (childDevice) {
+                            childDevice.sendEvent(name:"message", value: "${message}", displayed: false)
+                        } else {
+                            log.error "Could not find child device: ${deviceID}"
+                        }
+                        logDebug "Message Received by Twilio: ${message}"
+                    }
                 }
+            } catch (Exception e) {
+                log.error "deviceNotification: Invalid API Credentials were probably entered. Twilio Server Returned: ${e}"
             }
-        } catch (Exception e) {
-        	log.error "deviceNotification: Invalid API Credentials were probably entered. Twilio Server Returned: ${e}"
-		}
-  	} else {
-    	log.error "Account SID '${accountSID}' or Auth Token '${authToken}' is not properly formatted!"
-  	}
+        } else {
+            log.error "Account SID '${accountSID}' or Auth Token '${authToken}' is not properly formatted!"
+        }
+    }
 }
 
 private logDebug(msg) {
