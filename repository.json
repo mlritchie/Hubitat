@@ -8,6 +8,20 @@
          "location": "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/packageManifest.json",
          "description": "Google Calendar Search integrates Hubitat Elevation with a Google Calendar to toggle a virtual switch based on a calendar event.",
          "tags": ["Lights & Switches", "LAN", "Notifications"]
+      },
+      {
+         "name": "Twilio SMS and Voice Notifications",
+         "category": "Integrations",
+         "location": "https://raw.githubusercontent.com/mlritchie/Hubitat/master/Drivers/Twilio%20SMS/packageManifest.json",
+         "description": "Send SMS and initiate voice call notifications via the Plivo.",
+         "tags": ["LAN", "Notifications"]
+      },
+      {
+         "name": "Plivo SMS and Voice Notifications",
+         "category": "Integrations",
+         "location": "https://raw.githubusercontent.com/mlritchie/Hubitat/master/Drivers/Plivo%20SMS/packageManifest.json",
+         "description": "Send SMS and initiate voice call notifications via the Plivo.",
+         "tags": ["LAN", "Notifications"]
       }
    ]
 }
