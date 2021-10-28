@@ -14,7 +14,7 @@
 *
 *
 */
-def version() {"v1.0.20201107"}
+def version() {"v1.0.20211028"}
 
 metadata {
   	definition (name: "Twilio Device", namespace: "mlritchie", author: "Michael Ritchie") {
@@ -43,8 +43,10 @@ def initialize() {
 
 def deviceNotification(message) {
   	parent.sendNotification(toNumber, message, device.deviceNetworkId)
+	sendEvent(name: "lastMessage", value: "${message}")
 }
 
 def speak(message) {
     parent.makeCall(toNumber, message, device.deviceNetworkId)
+    sendEvent(name: "lastMessage", value: "${message}")
 }
