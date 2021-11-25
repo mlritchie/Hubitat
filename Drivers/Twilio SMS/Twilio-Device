@@ -23,6 +23,7 @@ metadata {
   	}
 	
 	attribute "lastMessage", "string"
+        attribute "htmlLastMessage", "string"
 }
 
 preferences {
@@ -43,8 +44,10 @@ def initialize() {
 
 def deviceNotification(message) {
   	parent.sendNotification(toNumber, message, device.deviceNetworkId)
+        sendEvent(name: "htmlLastMessage", value: "<div><h1 style='font-size:10px;'>${message}</h1></div>")
 }
 
 def speak(message) {
     parent.makeCall(toNumber, message, device.deviceNetworkId)
+    sendEvent(name: "htmlLastMessage", value: "<div><h1 style='font-size:10px;'>${message}</h1></div>")
 }
