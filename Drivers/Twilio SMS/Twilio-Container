@@ -1,3 +1,5 @@
+def version() {"v1.1"}
+
 /**
  *  Twilio Container
  *
@@ -13,8 +15,6 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-
-def version() {"v1.0.20211028"}
 
 metadata {
 	definition (name: "Twilio Container", namespace: "mlritchie", author: "Michael Ritchie") {
