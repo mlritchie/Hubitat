@@ -4,6 +4,7 @@
   "version": "1.2",
   "minimumHEVersion": "1.0",
   "dateReleased": "2021-12-08",
+  "releaseNotes": "Added 'Enable notifications' preference (default is true) where you can temporarily disable notifications without removing the device from rules and apps.  Also added description text to the event created that includes the phone number the notification was sent to; this is useful when multiple numbers are entered separated by commas.",
   "apps": [],
   "drivers": [
     {
