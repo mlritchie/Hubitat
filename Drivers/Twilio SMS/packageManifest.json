@@ -1,9 +1,9 @@
 {
   "packageName": "Twilio SMS and Voice Notifications",
   "author": "ritchierich",
-  "version": "1.1",
+  "version": "1.2",
   "minimumHEVersion": "1.0",
-  "dateReleased": "2021-11-28",
+  "dateReleased": "2021-12-08",
   "apps": [],
   "drivers": [
     {
