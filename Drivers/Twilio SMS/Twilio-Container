@@ -1,4 +1,4 @@
-def version() {"v1.1"}
+def version() {"v1.2"}
 
 /**
  *  Twilio Container
@@ -135,7 +135,7 @@ def sendNotification(toNumber, message, deviceID) {
         if (!toNumber) continue
 
         def postBody = [
-            From: "$fromNumber",
+            From: "${fromNumber}",
             To: "${toNumber}",
             Body: "${message}"
         ]
@@ -154,7 +154,7 @@ def sendNotification(toNumber, message, deviceID) {
                     } else {
                         def childDevice = getChildDevice(deviceID)
                         if (childDevice) {
-                            childDevice.sendEvent(name:"message", value: "${message}", displayed: false)
+                            childDevice.sendEvent(name:"message", value: "${message}", descriptionText: "Sent to ${toNumber}", displayed: false)
                         } else {
                             log.error "Could not find child device: ${deviceID}"
                         }
@@ -201,7 +201,7 @@ def makeCall(toNumber, message, deviceID) {
                     } else {
                         def childDevice = getChildDevice(deviceID)
                         if (childDevice) {
-                            childDevice.sendEvent(name:"message", value: "${message}", displayed: false)
+                            childDevice.sendEvent(name:"message", value: "${message}", descriptionText: "Sent to ${toNumber}", displayed: false)
                         } else {
                             log.error "Could not find child device: ${deviceID}"
                         }
