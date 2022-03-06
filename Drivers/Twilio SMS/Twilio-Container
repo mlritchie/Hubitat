@@ -1,4 +1,4 @@
-def version() {"v1.2"}
+def version() {"v1.3"}
 
 /**
  *  Twilio Container
