@@ -1,4 +1,4 @@
-def version() { "1.2" }
+def version() { "1.3" }
 
 /**
 *	Twilio Device
@@ -55,7 +55,7 @@ def deviceNotification(message) {
     }
 }
 
-def speak(message) {
+def speak(message, volume=null, voice=null) {
     if (settings.enableNofications == null || settings.enableNofications == true) {
         parent.makeCall(toNumber, message, device.deviceNetworkId)
         sendEvent(name: "lastMessage", value: "${message}", descriptionText: "Sent to ${settings.toNumber}")
