@@ -1,10 +1,10 @@
 {
   "packageName": "Twilio SMS and Voice Notifications",
   "author": "ritchierich",
-  "version": "1.3",
+  "version": "1.4",
   "minimumHEVersion": "1.0",
-  "dateReleased": "2022-03-05",
-  "releaseNotes": "Fixed issue with speak function causing error when invoked from rule machine.",
+  "dateReleased": "2022-03-10",
+  "releaseNotes": "Fixed issue saving new Twilio API credentials where phone number was required yet the account hadn't been validated yet to gather new phone number.",
   "apps": [],
   "drivers": [
     {
