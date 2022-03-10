@@ -1,3 +1,5 @@
+def version() {"1.1"}
+
 /**
 *	Plivo Device
 *
@@ -14,18 +16,21 @@
 *
 *
 */
-def version() {"v1.0.20211021"}
 
 metadata {
   	definition (name: "Plivo Device", namespace: "mlritchie", author: "Michael Ritchie") {
     	capability "Notification"
+        capability "SpeechSynthesis"
   	}
 	
 	attribute "lastMessage", "string"
+    attribute "htmlLastMessage", "string"
 }
 
 preferences {
 	input("toNumber", "text", title: "Phone Number:", description: "Phone number to send SMS to.", required: true)
+    input("enableHTMLMessage", "bool", title: "Enable HTML Message Events?", defaultValue: false, required: false)
+    input("enableNofications", "bool", title: "Enable Notifications?", defaultValue: true, required: false)
 }
 
 def installed() {
@@ -41,5 +46,27 @@ def initialize() {
 }
 
 def deviceNotification(message) {
-  	parent.sendNotification(toNumber, message, device.deviceNetworkId)
+    if (settings.enableNofications == null || settings.enableNofications == true) {
+        parent.sendNotification(toNumber, message, device.deviceNetworkId)
+        sendEvent(name: "lastMessage", value: "${message}", descriptionText: "Sent to ${settings.toNumber}")
+        createHTMLMsgEvent(message)
+    } else {
+        log.debug "Device ${settings.toNumber} disabled: ${message}"
+    }
+}
+
+def speak(message, volume=null, voice=null) {
+    if (settings.enableNofications == null || settings.enableNofications == true) {
+        parent.makeCall(toNumber, message, device.deviceNetworkId)
+        sendEvent(name: "lastMessage", value: "${message}", descriptionText: "Sent to ${settings.toNumber}")
+        createHTMLMsgEvent(message)
+    } else {
+        log.debug "Device ${settings.toNumber} disabled: ${message}"
+    }
+}
+
+def createHTMLMsgEvent(message) {
+    if (enableHTMLMessage == true) {
+        sendEvent(name: "htmlLastMessage", value: "<div><h1 style='font-size:10px;'>${message}</h1></div>")
+    }
 }
