@@ -1,3 +1,5 @@
+def version() {"v1.1"}
+
 /**
  *  Plivo Container
  *
@@ -14,8 +16,6 @@
  *
  */
 
-def version() {"v1.0.20211021"}
-
 metadata {
 	definition (name: "Plivo Container", namespace: "mlritchie", author: "Michael Ritchie") {
         attribute "containerSize", "number"	//stores the total number of child switches created by the container
@@ -27,13 +27,15 @@ preferences {
 	input("authID", "text", title: "Plivo Auth ID:", description: "Plivo Auth ID")
   	input("authToken", "text", title: "Plivo Auth Token:", description: "Plivo Auth Token")
     input("useAlphaSender", "bool", title: "Use Alpha Sender?", defaultValue: false, required: false)
-    if (getValidated()) {
+    def accountDetails = getValidated()
+    if (accountDetails.validAccount) {
         if (useAlphaSender == true) {
 		    input("fromNumber", "string", title: "Alpha Sender:", description: "Alpha Sender to use.", required: true)
-        } else {
-            input("fromNumber", "enum", title: "Plivo Phone Number:", description: "Plivo phone number to use.", options: getValidated("phoneList"), required: true)
+        } else if (accountDetails.phoneList.size() > 0) {
+            input("fromNumber", "enum", title: "Plivo Phone Number:", description: "Plivo phone number to use.", options: accountDetails.phoneList, required: true)
         }
     }
+    input("voiceURL", "string", title: "Plivo PHLO URL", description: "To support voice calls, please setup a PHLO in the Plivo Console and paste in the URL here.", required: false)
 	input("isDebugEnabled", "bool", title: "Enable debug logging?", defaultValue: false, required: false)
 }
 
@@ -67,6 +69,10 @@ def initialize() {
 	updateSize()
 }
 
+def uninstalled() {
+    
+}
+
 def updateSize() {
 	int mySize = getChildDevices().size()
     sendEvent(name:"containerSize", value: mySize)
@@ -81,14 +87,10 @@ def updatePhoneNumber() { // syncs device label with componentLabel data value
     }
 }
 
-def getValidated(type) {
-	def validated = false
-	
-	if (type == "phoneList") {
-		logDebug "Generating Plivo phone number list..."
-	} else {
-		logDebug "Validating API Credentials..."
-	}
+def getValidated() {
+	def answer = [:]
+    answer.validAccount = false
+    answer.phoneList = []
     
     def params = [
     	uri: "https://" + authID + ":" + authToken + "@api.plivo.com/v1/Account/" + authID + "/Number/"
@@ -99,15 +101,11 @@ def getValidated(type) {
         	httpGet(params){response ->
       			if (response.status != 200) {
         			log.error "Received HTTP error ${response.status}. Check your API Credentials!"
-      			} else {
-                    if (type=="phoneList") {
-                        phoneList = response.data.objects.number
-                        logDebug "Phone list generated phoneList: ${phoneList}"
-                    } else {
-                        logDebug "API credentials validated"
-                        validated = true
-                    }
-      			}
+                } else {
+                    logDebug "API credentials validated, Phone list generated"
+                    answer.phoneList = response.data.objects.number
+                    answer.validAccount = true
+                }
     		}
         } catch (Exception e) {
         	log.error "getValidated: Invalid API Credentials were probably entered. Plivo Server Returned: ${e}"
@@ -115,49 +113,101 @@ def getValidated(type) {
     } else {
     	log.error "Account SID '${authID}' or Auth Token '${authToken}' is not properly formatted!"
   	}
-	
-    if (type == "phoneList") {
-		return phoneList
-	} else {
-		return validated
-	}    
+    
+    return answer
 }
 
 def sendNotification(toNumber, message, deviceID) {
-  	def postBody = [
-        src: "+${fromNumber}",
-		dst: "${toNumber}",
-        type: "sms",
-   		text: "${message}"
-  	]
-    
-  	def params = [
-		uri: "https://" + authID + ":" + authToken + "@api.plivo.com/v1/Account/" + authID + "/Message/",
-    	contentType: "application/json",
-        body: postBody
-  	]
-    
-    if ((authID =~ /[A-Za-z0-9]{20}/) && (authToken =~ /[A-Za-z0-9]{40}/)) {
-        try {
-            httpPost(params){response ->
-                if (response.status != 202) {
-                    log.error "Received HTTP error ${response.status}. Check your API Credentials!"
-                } else {
-                    def childDevice = getChildDevice(deviceID)
-					if (childDevice) {
-						childDevice.sendEvent(name:"message", value: "${message}", displayed: false)
-					} else {
-						log.error "Could not find child device: ${deviceID}"
-					}
-                    logDebug "Message Received by Plivo: ${message}"
+    def toNumberList = toNumber.toString().split(",");     
+    for (int i = 0; i < toNumberList.size(); i++) {
+        toNumber = toNumberList[i].trim()
+        if (!toNumber) continue
+        
+        def postBody = [
+            src: "+${fromNumber}",
+            dst: "${toNumber}",
+            type: "sms",
+            text: "${message}"
+        ]
+
+        def params = [
+            uri: "https://" + authID + ":" + authToken + "@api.plivo.com/v1/Account/" + authID + "/Message/",
+            contentType: "application/json",
+            body: postBody
+        ]
+
+        if ((authID =~ /[A-Za-z0-9]{20}/) && (authToken =~ /[A-Za-z0-9]{40}/)) {
+            try {
+                httpPost(params){response ->
+                    if (response.status != 202) {
+                        log.error "Received HTTP error ${response.status}. Check your API Credentials!"
+                    } else {
+                        def childDevice = getChildDevice(deviceID)
+                        if (childDevice) {
+                            childDevice.sendEvent(name:"message", value: "${message}", displayed: false)
+                        } else {
+                            log.error "Could not find child device: ${deviceID}"
+                        }
+                        logDebug "Message Received by Plivo: ${message}"
+                    }
                 }
+            } catch (Exception e) {
+                log.error "deviceNotification: Invalid API Credentials were probably entered. Plivo Server Returned: ${e}"
             }
-        } catch (Exception e) {
-        	log.error "deviceNotification: Invalid API Credentials were probably entered. Plivo Server Returned: ${e}"
-		}
-  	} else {
-    	log.error "Account SID '${authID}' or Auth Token '${authToken}' is not properly formatted!"
-  	}
+        } else {
+            log.error "Account SID '${authID}' or Auth Token '${authToken}' is not properly formatted!"
+        }
+    }
+}
+
+def makeCall(toNumber, message, deviceID) {
+    if (settings.voiceURL == null) {
+        log.warn "The Plivo PHLO URL must be set in order to make calls."
+        return
+    }
+
+    def toNumberList = toNumber.toString().split(",");     
+    for (int i = 0; i < toNumberList.size(); i++) {
+        toNumber = toNumberList[i].trim()
+        if (!toNumber) continue
+
+        def postBody = [
+            from: "+${fromNumber}",
+            to: "${toNumber}",
+            message: message //URLEncoder.encode(message)
+        ]
+
+        def voiceURL = settings.voiceURL
+        voiceURL = voiceURL.toString().replace("https://", "https://" + authID + ":" + authToken + "@")
+
+        def params = [
+            uri: voiceURL,
+            contentType: "application/json",
+            body: postBody
+        ]
+        
+        if ((authID =~ /[A-Za-z0-9]{20}/) && (authToken =~ /[A-Za-z0-9]{40}/)) {
+            try {
+                httpPost(params){response ->
+                    if (response.status != 200) {
+                        log.error "Received HTTP error ${response.status}. Check your API Credentials!"
+                    } else {
+                        def childDevice = getChildDevice(deviceID)
+                        if (childDevice) {
+                            childDevice.sendEvent(name:"message", value: "${message}", displayed: false)
+                        } else {
+                            log.error "Could not find child device: ${deviceID}"
+                        }
+                        logDebug "Message Received by Plivo: ${message}"
+                    }
+                }
+            } catch (Exception e) {
+                log.error "deviceNotification: Invalid API Credentials were probably entered. Plivo Server Returned: ${e}"
+            }
+        } else {
+            log.error "Account SID '${authID}' or Auth Token '${authToken}' is not properly formatted!"
+        }
+    }
 }
 
 private logDebug(msg) {
