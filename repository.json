@@ -3,7 +3,7 @@
    "gitHubUrl": "https://github.com/mlritchie",
    "packages": [
       {
-         "name": "Google Calendar Search",
+         "name": "Google Calendar, Task, Reminder, and Gmail Search and Gmail Notification Device",
          "category": "Integrations",
          "location": "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/packageManifest.json",
          "description": "Google Calendar, Task, Reminder, and Gmail Search integrates Hubitat Elevation with Google for automations based on items found.  Included Gmail Notification Device provides Gmail email notifications from Hubitat Elevation.",
