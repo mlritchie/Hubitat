@@ -19,8 +19,8 @@ definition(
     author: "Michael Ritchie",
     description: "Handle Garage Door Blockage Sensor Events",
     category: "Convenience",
-    documentationLink: "https://community.hubitat.com/t/release-google-calendar-search/71397",
-    importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy",
+    documentationLink: "https://community.hubitat.com/t/garage-door-blockage-indicator-system/110097/16",
+    importUrl: "https://raw.githubusercontent.com/mlritchie/Hubitat/master/Apps/Garage%20Door%20Blockage%20Sensor%20Handler/garage_door_blockage_sensor_handler.groovy",
     iconUrl: "",
     iconX2Url: "",
     singleThreaded: true
