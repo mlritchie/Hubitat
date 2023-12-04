@@ -1,4 +1,4 @@
-def appVersion() { return "1.2" }
+def appVersion() { return "1.3" }
 /**
  *  Garage Door Blockage Sensor Handler
  *
@@ -44,7 +44,8 @@ def mainPage() {
         }
         section(){
             input "sensorLight", "capability.colorControl", title: "Garage Door Sensor RGB Indicator", multiple: false, required: true, width: 4
-            input "timeOnThreshold", "number", title: "Number of minutes for RGB Indicator to stay on", required: false, defaultValue: 3, width: 4
+            input "timeOnThreshold", "number", title: "Number of minutes for RGB Indicator to stay on", required: true, defaultValue: 3, width: 4
+            input "blockedHueValue", "number", title: "Hue value when door is blocked", required: true, defaultValue: 0, width: 4
         }
         section(){
             def doorSensorTypeLabel, doorSensorStateLabel
@@ -77,7 +78,8 @@ def mainPage() {
             paragraph "${getFormat("line")}"
         }
 		section("${getFormat("box", "Other preferences")}") {
-			input "isDebugEnabled", "bool", title: "Enable Debugging?", defaultValue: false
+			input name: "appName", type: "text", title: "Name this app", required: true, defaultValue: "Garage Door Blockage Sensor Handler"
+            input name: "isDebugEnabled", type: "bool", title: "Enable Debugging?", defaultValue: false
             paragraph "${getFormat("line")}"
 		}
     }
@@ -95,6 +97,7 @@ def updated() {
 }
 
 def initialize() {    
+    updateAppLabel()
     state.isScheduled = (state.isScheduled) ? state.isScheduled : false
     unschedule()
     
@@ -116,7 +119,7 @@ def garageDoorHandler(evt) {
     def deviceName = evt.displayName
     def deviceValue = evt.value
     logDebug("garageDoorHandler - deviceName: ${deviceName}, deviceValue: ${deviceValue}")
-    if (settings.doorSensorPower && deviceValue == "open") {
+    if (settings.doorSensorPower && deviceValue.startsWith("open")) {
         doorSensorPower.on()
     } else {
         if (settings.doorSensorPower) doorSensorPower.off()
@@ -168,7 +171,7 @@ def setColor(color) {
     def hueValue
     switch(color) {
         case "red":
-            hueValue = 100
+            hueValue = (settings.blockedHueValue != null) ? settings.blockedHueValue : 0
             break
         case "green":
             hueValue = 33
@@ -193,6 +196,11 @@ def appButtonHandler(btn) {
 			break
     }
     updated()
+}
+
+def updateAppLabel() {
+    String appName = settings.appName
+    app.updateLabel(appName)
 }
 
 def getFormat(type, displayText=""){ // Modified from @Stephack and @dman2306 Code   
