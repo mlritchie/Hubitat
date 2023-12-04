@@ -31,7 +31,7 @@ preferences {
 }
 
 def mainPage() {
-    dynamicPage(name: "mainPage", title: "${getFormat("title", "Garage Door Blockage Sensor Handler Version " + appVersion())}", uninstall: trie, install: true) {
+    dynamicPage(name: "mainPage", title: "${getFormat("title", "Garage Door Blockage Sensor Handler Version " + appVersion())}", uninstall: true, install: true) {
         section(){
 			if (!state.isPaused) {
 				input(name: "pauseButton", type: "button", title: "Pause", backgroundColor: "Green", textColor: "white", submitOnChange: true)
