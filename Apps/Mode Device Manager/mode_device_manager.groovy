@@ -1,5 +1,5 @@
 /**
- *  Mode Device Manager v2.0
+ *  Mode Device Manager v2.2
  *
  *  Credits:
  *  Originally posted on the Hubitat Community as 'Mode Switches' https://community.hubitat.com/t/released-control-switches-by-mode/121043
@@ -34,7 +34,7 @@ def mainPage() {
 	if(!state.modeSwitch) state.modeSwitch = [:]
     if(!state.modeLock) state.modeLock = [:]
 	dynamicPage(name: "mainPage", title: "Mode Device Manager", uninstall: true, install: true) {
-		section {
+        section {
 			input "lights", "capability.switch", title: "Select Switches to Control", multiple: true, submitOnChange: true, width: 4
             input "locks", "capability.lock", title: "Select Locks to Control", multiple: true, submitOnChange: true, width: 4
 			if(lights) {
@@ -60,6 +60,7 @@ def mainPage() {
 				}
 				paragraph displayLockTable()
 			}
+            input "validateSeconds", "number", title: "Number of seconds to check device state", defaultValue: 60
             input "logging", "bool", title: "Enable Logging?", defaultValue: true, submitOnChange: true
 		}
 	}
@@ -67,7 +68,7 @@ def mainPage() {
 
 String displaySwitchTable() {    
     String str = getTableHeader(2, "Switches")
-	location.modes.each{str += "<th>On</th><th style='border-right:2px solid black' bgcolor='#F8F8F8'>Off</th>"}
+	location.modes.each{str += "<th>On</th><th bgcolor='#F8F8F8' style='border-right:2px solid black'>Off</th>"}
 	str += "</tr></thead>"
 	String X = "<i class='he-checkbox-checked'></i>"
 	String O = "<i class='he-checkbox-unchecked'></i>"
@@ -82,7 +83,7 @@ String displaySwitchTable() {
             } else {
                 str += "<td>${buttonLink("$dev.id:$it.id:on", state.modeSwitch[dev.id]["$it.id"] == "on" ? X : O, "#1A77C9")}</td>"
             }
-			str += "<td style='border-right:2px solid black' bgcolor='#F8F8F8'>${buttonLink("$dev.id:$it.id:off", state.modeSwitch[dev.id]["$it.id"] == "off" ? X : O, "#1A77C9")}</td>"
+			str += "<td bgcolor='#F8F8F8' style='border-right:2px solid black'>${buttonLink("$dev.id:$it.id:off", state.modeSwitch[dev.id]["$it.id"] == "off" ? X : O, "#1A77C9")}</td>"
 		}
 	}
 	str += "</tr></table></div>"
@@ -177,21 +178,49 @@ void initialize() {
 
 void modeHandler(evt) {
 	if (logging) log.info "Mode is now <b>$evt.value</b>"
-	lights.each{dev -> 
-		String s = state.modeSwitch[dev.id]["$location.currentMode.id"]
-		if (s.isNumber()) {
-            dev.setLevel(s.toInteger())
-            if(logging) log.info "$dev was set to $s%"
-        } else if (s != " ") {
-			dev."$s"()
-			if(logging) log.info "$dev turned $s"
-		}
-	}
     locks.each{dev -> 
 		String s = state.modeLock[dev.id]["$location.currentMode.id"]
-		if(s != " ") {
+		if(s != " " && dev.currentLock != "locked") {
 			dev."$s"()
 			if(logging) log.info "$dev $s"
 		}
 	}
+    lights.each{dev -> 
+		String s = state.modeSwitch[dev.id]["$location.currentMode.id"]
+		if (s.isNumber()) {
+            dev.setLevel(s.toInteger())
+            if(logging) log.info "$dev was set to $s%"
+        } else if (s != " " && dev.currentSwitch != s) {
+			dev."$s"()
+			if(logging) log.info "$dev turned $s"
+		}
+	}
+    
+    runIn(settings.validateSeconds, validateState)
+}
+
+def validateState() {
+    def locksMissed = []
+    locks.each{dev -> 
+		String s = state.modeLock[dev.id]["$location.currentMode.id"]
+		if(s != " " && dev.currentLock != "locked") {
+			dev."$s"()
+			locksMissed.push(dev)
+		}
+	}
+    
+    def lightsMissed = []
+    lights.each{dev -> 
+		String s = state.modeSwitch[dev.id]["$location.currentMode.id"]
+		if (s.isNumber() && (dev.currentSwitch == "off" || dev.currentLevel.toInteger() != s.toInteger())) {
+            dev.setLevel(s.toInteger())
+            lightsMissed.push(dev)
+        } else if (!s.isNumber() && s != " " && dev.currentSwitch != s) {
+			dev."$s"()
+			lightsMissed.push(dev)
+		}
+	}
+    if (locksMissed.size() > 0 || lightsMissed.size() > 0) {
+        log.debug "locksMissed: ${locksMissed}, lightsMissed: ${lightsMissed}"
+    }
 }
