@@ -1,0 +1,324 @@
+[
+    {
+        "id": "0e2cda9076549296",
+        "type": "tab",
+        "label": "Genmon",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "e9e99dac82ff10e2",
+        "type": "switch",
+        "z": "0e2cda9076549296",
+        "name": "Filter Topics",
+        "property": "topic",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "cont",
+                "v": "Status/Engine/System In Alarm",
+                "vt": "str"
+            },
+            {
+                "t": "cont",
+                "v": "Status/Engine/Engine State",
+                "vt": "str"
+            },
+            {
+                "t": "cont",
+                "v": "Status/Engine/Output",
+                "vt": "str"
+            },
+            {
+                "t": "cont",
+                "v": "Status/Engine/Frequency",
+                "vt": "str"
+            },
+            {
+                "t": "cont",
+                "v": "Status/Engine/Current",
+                "vt": "str"
+            },
+            {
+                "t": "cont",
+                "v": "Status/Engine/RPM",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 7,
+        "x": 270,
+        "y": 220,
+        "wires": [
+            [
+                "aa3afe92f2cd1752",
+                "f123ab77c19e21de"
+            ],
+            [
+                "70d42b38726a158d",
+                "aa3afe92f2cd1752",
+                "f123ab77c19e21de"
+            ],
+            [],
+            [],
+            [],
+            [],
+            [
+                "aa3afe92f2cd1752"
+            ]
+        ]
+    },
+    {
+        "id": "b8b94cdf22b87ddf",
+        "type": "function",
+        "z": "0e2cda9076549296",
+        "name": "Update HE",
+        "func": "msg.arguments = JSON.stringify(msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 610,
+        "y": 380,
+        "wires": [
+            [
+                "8f787ff6e38c5450"
+            ]
+        ]
+    },
+    {
+        "id": "8f787ff6e38c5450",
+        "type": "hubitat command",
+        "z": "0e2cda9076549296",
+        "deviceLabel": "",
+        "name": "Receive Data",
+        "server": "1232b566ca42ed8a",
+        "deviceId": "2637",
+        "command": "receiveData",
+        "commandArgs": "",
+        "x": 880,
+        "y": 380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "7e07c327bcab1ae3",
+        "type": "mqtt in",
+        "z": "0e2cda9076549296",
+        "name": "MQTT Pi",
+        "topic": "Genmon/#",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "71f5d7eb4f233d41",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 80,
+        "y": 220,
+        "wires": [
+            [
+                "e9e99dac82ff10e2",
+                "ed652d0dc77207df"
+            ]
+        ]
+    },
+    {
+        "id": "0441c7b0062a97d1",
+        "type": "hubitat command",
+        "z": "0e2cda9076549296",
+        "deviceLabel": "Genny",
+        "name": "On",
+        "server": "1232b566ca42ed8a",
+        "deviceId": "2637",
+        "command": "on",
+        "commandArgs": "",
+        "x": 850,
+        "y": 160,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "70d42b38726a158d",
+        "type": "switch",
+        "z": "0e2cda9076549296",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "Cranking",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "Off - Ready",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 590,
+        "y": 180,
+        "wires": [
+            [
+                "0441c7b0062a97d1"
+            ],
+            [
+                "ae26f93f857fa859"
+            ]
+        ]
+    },
+    {
+        "id": "ae26f93f857fa859",
+        "type": "hubitat command",
+        "z": "0e2cda9076549296",
+        "deviceLabel": "Genny",
+        "name": "Off",
+        "server": "1232b566ca42ed8a",
+        "deviceId": "2637",
+        "command": "off",
+        "commandArgs": "",
+        "x": 850,
+        "y": 200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ed652d0dc77207df",
+        "type": "debug",
+        "z": "0e2cda9076549296",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 270,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "f123ab77c19e21de",
+        "type": "function",
+        "z": "0e2cda9076549296",
+        "name": "Set Message",
+        "func": "var lastIndex = msg.topic.lastIndexOf(\"/\");\nvar topic = msg.topic.slice(lastIndex + 1);\n\nmsg.topic = \"NodeRed Genmon Alert\";\nvar alertMsg = topic + \": \" + msg.payload;\nmsg.payload = alertMsg;\nmsg.device = \"Michaels_iPhone,Michaels_iPad\";\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 610,
+        "y": 120,
+        "wires": [
+            [
+                "8b2d972a804ebe66"
+            ]
+        ]
+    },
+    {
+        "id": "8b2d972a804ebe66",
+        "type": "pushover api",
+        "z": "0e2cda9076549296",
+        "keys": "074dc8585b5c49f0",
+        "title": "",
+        "name": "",
+        "x": 860,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "aa3afe92f2cd1752",
+        "type": "join",
+        "z": "0e2cda9076549296",
+        "name": "",
+        "mode": "custom",
+        "build": "object",
+        "property": "payload",
+        "propertyType": "msg",
+        "key": "topic",
+        "joiner": "\\n",
+        "joinerType": "str",
+        "accumulate": false,
+        "timeout": "3",
+        "count": "",
+        "reduceRight": false,
+        "reduceExp": "",
+        "reduceInit": "",
+        "reduceInitType": "num",
+        "reduceFixup": "",
+        "x": 450,
+        "y": 380,
+        "wires": [
+            [
+                "b8b94cdf22b87ddf"
+            ]
+        ]
+    },
+    {
+        "id": "1232b566ca42ed8a",
+        "type": "hubitat config",
+        "name": "Hubitat",
+        "usetls": false,
+        "host": "192.168.1.100",
+        "port": "80",
+        "appId": "1154",
+        "nodeRedServer": "http://192.168.1.101:1880",
+        "webhookPath": "/hubitat/webhook",
+        "autoRefresh": true,
+        "useWebsocket": false,
+        "colorEnabled": false,
+        "color": "#ace043",
+        "credentials": {}
+    },
+    {
+        "id": "71f5d7eb4f233d41",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "127.0.0.1",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "074dc8585b5c49f0",
+        "type": "pushover-keys",
+        "name": ""
+    }
+]
