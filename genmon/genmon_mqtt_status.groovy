@@ -1,4 +1,4 @@
-def driverVersion() { return "1.0" }
+def driverVersion() { return "1.1" }
 /**
  *  Genmon MQTT Status Driver
  *
@@ -20,12 +20,12 @@ import groovy.json.JsonSlurper
 import groovy.transform.Field
 
 @Field static Map topicList = [
+    "Genmon_Status":"Genmon/generator/client_status",
     "temperature":"Genmon/generator/Maintenance/Ambient Temperature Sensor",
-    "Engine State":"Genmon/generator/Status/Engine/Engine State",
-    "Genmon Status":"Genmon/generator/client_status",
-    "Outage Status":"Genmon/generator/Outage/Status",
-    "powerSource":"Genmon/generator/Outage/System In Outage",
-    "Engine State":"Genmon/generator/Status/Engine/Engine State"
+    "Engine_State":"Genmon/generator/Status/Engine/Engine State",
+    "Alarm_Log":"Genmon/generator/Status/Last Log Entries/Logs/Alarm Log",
+    "Outage_Status":"Genmon/generator/Outage/Status",
+    "powerSource":"Genmon/generator/Outage/System In Outage"
 ]
 
 metadata {
@@ -39,17 +39,20 @@ metadata {
         attribute "connection", "string" // State of the connection to the MQTT broker ("connected" or "disconnected").
         
         topicList.each { attributeName, topic ->
-            attribute "${attributeName}", "string"
+            if (["temperature", "powerSource"].indexOf(attributeName) == -1) attribute "${attributeName}", "string"
         }
         
         command "connect"
         command "disconnect"
+        command "resetAlarm"
     }
     
     preferences {
         input name: "broker", type: "text", title: "Broker URL and Port", description: "use tcp:// or ssl:// prefix", required: true
         input name: "username", type: "text", title: "Username", description: "Broker username if required", required: false
         input name: "password", type: "password", title: "Password", description: "Broker userpassword if required", required: false
+        input name: "ipaddress", type: "text", title: "genmon Server IP", defaultValue: "0.0.0.0", required: true
+        input name: "port", type: "text", title: "Connection Port", defaultValue: "8000", required: true
         input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
     }
 }
@@ -154,8 +157,31 @@ def parse(String description) {
             evt.value = evt.value.replace(evt.unit, "").trim()
             break
     }
-    
+    log.trace "evt: ${evt}"
     sendEvent(evt)
+}
+
+def resetAlarm() {
+    if (!settings.ipaddress || !settings.port) {
+        log.error "ipaddress and port are required to reset alarm"
+        return
+    }
+    
+    def apiParams = [
+        uri: "http://${ipaddress}:${port}",
+        path: "/cmd/setremote",
+        query: [setremote: "resetalarm"]
+    ]
+    
+    try {
+        httpGet(apiParams) {
+            resp ->
+            //apiResponse = resp.data
+            logDebug "Resp Status: ${resp.status}"
+        }
+    } catch (e) {
+        log.error "path: ${path}, error: ${e}"
+    }
 }
 
 def on() {}
