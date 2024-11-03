@@ -116,7 +116,8 @@ def mqttClientStatus(String message) {
 
 def parse(String description) {
     def message = interfaces.mqtt.parseMessage(description)
-    logDebug "parse ${message}"
+    def logMsg = []
+    logMsg.push("parse - message: ${message}")
     
     def evt = [:]
     evt.name = topicList.find{it.value == message.topic}.key
@@ -157,7 +158,8 @@ def parse(String description) {
             evt.value = evt.value.replace(evt.unit, "").trim()
             break
     }
-    log.trace "evt: ${evt}"
+    logMsg.push("event: ${evt}")
+    logDebug("${logMsg}")
     sendEvent(evt)
 }
 
@@ -176,7 +178,6 @@ def resetAlarm() {
     try {
         httpGet(apiParams) {
             resp ->
-            //apiResponse = resp.data
             logDebug "Resp Status: ${resp.status}"
         }
     } catch (e) {
