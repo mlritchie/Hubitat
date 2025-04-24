@@ -17,7 +17,7 @@ def version() {"v1.0"}
  */
 
 metadata {
-	definition (name: "Textbelt Container", namespace: "mlritchie", author: "Michael Ritchie", importUrl: "") {
+	definition (name: "Textbelt Container", namespace: "mlritchie", author: "Michael Ritchie", importUrl: "https://raw.githubusercontent.com/mlritchie/Hubitat/refs/heads/master/Drivers/Textbelt%20SMS/Textbelt_Container.groovy") {
         capability "Notification"
         command "createDevice", ["DEVICE LABEL", "PHONE NUMBER"] //create any new Virtual Notification Device
     }
@@ -48,7 +48,7 @@ def installed() {
 }
 
 def updated() {
-    state.remove("vsIndex")
+    state.version = version()
     initialize()
 }
 
