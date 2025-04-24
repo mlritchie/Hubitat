@@ -18,7 +18,7 @@ def version() {"1.0"}
 */
 
 metadata {
-  	definition (name: "Textbelt Device", namespace: "mlritchie", author: "Michael Ritchie", importUrl: "") {
+  	definition (name: "Textbelt Device", namespace: "mlritchie", author: "Michael Ritchie", importUrl: "https://raw.githubusercontent.com/mlritchie/Hubitat/refs/heads/master/Drivers/Textbelt%20SMS/Textbelt_Device.groovy") {
     	capability "Notification"
   	}
 	
