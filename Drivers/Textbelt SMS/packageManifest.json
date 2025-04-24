@@ -1,0 +1,26 @@
+{
+  "packageName": "Textbelt SMS Notifications",
+  "author": "ritchierich",
+  "version": "1.0",
+  "minimumHEVersion": "1.0",
+  "dateReleased": "2022-04-24",
+  "communityLink": "https://community.hubitat.com/t/release-google-calendar-search/71397",
+  "releaseNotes": "Initial release",
+  "apps": [],
+  "drivers": [
+    {
+      "id": "e588afc3-4f69-45ce-b1e4-45905e7ba044",
+      "name": "Textbelt Container",
+      "namespace": "mlritchie",
+      "location": "https://raw.githubusercontent.com/mlritchie/Hubitat/refs/heads/master/Drivers/Textbelt%20SMS/Textbelt_Device.groovy",
+      "required": true
+    },
+    {
+      "id": "823e6e2d-8ba9-4dcb-aa83-6665fc3a361e",
+      "name": "Textbelt Device",
+      "namespace": "mlritchie",
+      "location": "https://raw.githubusercontent.com/mlritchie/Hubitat/refs/heads/master/Drivers/Textbelt%20SMS/Textbelt_Container.groovy",
+      "required": false
+    }
+  ]
+}
